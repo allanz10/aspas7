@@ -629,37 +629,30 @@ async function doSignup() {
 function doLogout() {
   if (authToken) fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + authToken } }).catch(() => {});
   
-  // 1. Limpa rigorosamente os dados de segurança
   authToken = ''; 
   localStorage.removeItem('ct_token'); 
   currentUser = null;
-  
-  // 2. Limpa todo estado da sessão
   accounts = [];
   categories = [];
   uploadQueue = [];
   if (typeof uploadAbortMap !== 'undefined' && uploadAbortMap.clear) uploadAbortMap.clear();
   
-  // 3. Força os elementos visuais a resetarem (Garante que tudo limpe no HTML)
   if (document.getElementById('sbAccountList')) document.getElementById('sbAccountList').innerHTML = '';
   if (document.getElementById('sbQueue')) document.getElementById('sbQueue').style.display = 'none';
   if (document.getElementById('queueList')) document.getElementById('queueList').innerHTML = '';
   
-  // 4. GARANTIA ANTI-TELA PRETA: Força a exibição visual direta via CSS
   const authScreen = document.getElementById('authScreen');
   const appWrap = document.getElementById('appWrap');
   
   if (authScreen) {
     authScreen.classList.remove('hidden');
-    authScreen.style.setProperty('display', 'flex', 'important'); // Garante que ela apareça mesmo se outra classe travar
+    authScreen.style.setProperty('display', 'flex', 'important');
   }
   if (appWrap) {
     appWrap.classList.remove('show');
-    appWrap.style.setProperty('display', 'none', 'important'); // Esconde o painel principal de vez
+    appWrap.style.setProperty('display', 'none', 'important');
   }
 
-  // 5. O PULO DO GATO: Se a sessão expirou no carregamento, um reload limpo resolve tudo de vez!
-  // Como o 'ct_token' já foi removido acima, o site vai carregar direto na tela de login oficial.
   window.location.reload();
 }
 
@@ -674,11 +667,9 @@ function enterApp() {
   appInit();
 }
 
-// Enter on password fields
 document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 document.getElementById('signupPass2').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
 
-// ═══ CHECK EXISTING SESSION ON LOAD ═══
 async function checkSession() {
   if (!authToken) return;
   try {
@@ -689,7 +680,6 @@ async function checkSession() {
 }
 checkSession();
 
-// ═══ APP LOGIC (same as before but using api() helper) ═══
 function updateClock(){const n=new Date();document.getElementById('topbarDate').textContent=n.toLocaleDateString('pt-BR')+' '+n.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
 updateClock();setInterval(updateClock,1000);
 
@@ -715,7 +705,6 @@ function nav(page){
   if(page==='admin-activity')loadAdminActivity();
 }
 
-// Upload Queue
 function addToQueue(id,accountName,total){uploadQueue.push({id,accountName,total,done:0,status:'uploading',label:'Iniciando...',current:null,errs:0});renderQueue();}
 function updateQueue(id,done,total,label,status,meta){
   const q=uploadQueue.find(q=>q.id===id);if(!q)return;
@@ -733,14 +722,12 @@ function renderQueue(){
     const isDone=q.status==='done',isErr=q.status==='error',isCancelled=q.status==='cancelled';
     const isActive=q.status==='uploading';
     const hasErrs=(q.errs||0)>0;
-    // Progresso em bytes (suave) ou fallback por arquivos
     let pct=0;
     if(isDone||isErr||isCancelled){pct=100;}
     else if(q.totalBytes>0){pct=Math.min(99,Math.round(q.bytesLoaded/q.totalBytes*100));}
     else if(q.total>0){pct=Math.round(q.done/q.total*100);}
     const fill=isErr?'var(--rd)':isCancelled?'var(--tx3)':isDone?(hasErrs?'var(--ye)':'var(--gr)'):'linear-gradient(90deg,var(--p),var(--p2))';
     const pctLabel=isDone?(hasErrs?'⚠ '+q.errs+' erro(s)':'✓'):isErr?'✗':isCancelled?'—':(pct+'%');
-    // Linha de detalhe: arquivo atual + velocidade + arquivos concluídos
     let detailLine='';
     if(isActive){
       const fileLine=q.activeFiles&&q.activeFiles.length
@@ -777,7 +764,7 @@ async function openUpload(){
   renderUploadPresets();
   openModal('modalUpload');
 }
-// Caption presets
+
 async function loadCaptionPresets(){
   try{captionPresets=await api('/api/captions');}catch(e){captionPresets=[];}
   renderCaptionsList();
@@ -794,6 +781,7 @@ function selectPreset(id){
   document.getElementById('up-cap').value=p.caption||'';
   document.getElementById('up-hash').value=p.hashtags||'';
 }
+// Legendas corrigidas aqui (done -> uploadDone)
 function renderCaptionsList(){
   const el=document.getElementById('captionsList');if(!el)return;
   if(!captionPresets.length){el.innerHTML='<div class="empty"><div class="empty-icon">💬</div><p>Nenhuma legenda salva ainda. Clique em "Nova legenda" para criar.</p></div>';return;}
@@ -820,7 +808,6 @@ if(dropArea){
 }
 if(vfi){vfi.addEventListener('change',e=>startUpload([...e.target.files]));}
 
-// Map de AbortControllers por qid para cancelamento
 const uploadAbortMap = new Map();
 
 function startUpload(files){
@@ -840,10 +827,8 @@ function cancelUpload(qid){
   setTimeout(()=>removeFromQueue(qid),4000);
 }
 
-// Upload direto browser → R2 via presign (sem passar pelo servidor)
-// Mais rápido pois elimina 1 hop: browser → servidor → R2 vira browser → R2
 async function runUploadPresign(qid,files,params,acc){
-  const PARALLEL=6; // direto ao R2: gargalo é só banda upstream do cliente
+  const PARALLEL=6;
   let uploadDone=0,errs=0,cancelled=false;
   const total=files.length;
   const ctrl=new AbortController();
@@ -852,17 +837,13 @@ async function runUploadPresign(qid,files,params,acc){
   const fileArr=[...files].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
   const uploaded=[];
 
-  // Calcular total de bytes para barra suave
   const totalBytes=fileArr.reduce((s,f)=>s+f.size,0);
-  // bytesPerFile[idx] = bytes enviados desse arquivo até agora
   const bytesPerFile=new Array(fileArr.length).fill(0);
-  // activeFiles = arquivos enviando agora [{name, pct}]
   const activeMap=new Map();
 
   const q=uploadQueue.find(q=>q.id===qid);
   if(q){q.totalBytes=totalBytes;q.bytesLoaded=0;q.activeFiles=[];}
   updateQueue(qid,0,total,'Iniciando...','uploading');
-
   function refreshProgress(){
     const loaded=bytesPerFile.reduce((s,b)=>s+b,0);
     const q=uploadQueue.find(q=>q.id===qid);
@@ -879,7 +860,6 @@ async function runUploadPresign(qid,files,params,acc){
     activeMap.set(idx,{name:f.name,pct:0});
     refreshProgress();
     try{
-      // 1. Pedir URL presignada ao servidor (request pequeno, ~1ms)
       const ext=f.name.split('.').pop().toLowerCase();
       const ct='video/'+ext;
       const presign=await fetch(
@@ -888,12 +868,9 @@ async function runUploadPresign(qid,files,params,acc){
       ).then(r=>r.json());
       if(presign.error)throw new Error(presign.error);
 
-      // 2. PUT direto ao R2 via XHR (progresso real em bytes, sem passar pelo servidor)
       await new Promise((res,rej)=>{
-        // Checar abort antes de criar o XHR — signal pode já estar abortado
         if(ctrl.signal.aborted)return rej(new Error('cancelado'));
         const xhr=new XMLHttpRequest();
-        // onAbortHandler: garante que XHR é abortado mesmo se signal já foi disparado
         const onAbort=()=>{xhr.abort();rej(new Error('cancelado'));};
         ctrl.signal.addEventListener('abort',onAbort);
         xhr.upload.onprogress=e=>{
@@ -905,7 +882,6 @@ async function runUploadPresign(qid,files,params,acc){
         xhr.onload=()=>{
           ctrl.signal.removeEventListener('abort',onAbort);
           if(xhr.status>=400){
-            // Log detalhado para debug
             console.error('[R2 Error]',xhr.status,xhr.responseText.slice(0,300));
             rej(new Error('R2 '+xhr.status+(xhr.status===403?' (assinatura inválida - tente novamente)':xhr.status===400?' (requisição inválida)':'')));
           } else res();
@@ -924,7 +900,6 @@ async function runUploadPresign(qid,files,params,acc){
       return {idx,originalName:f.name,key:presign.key,publicFileUrl:presign.publicFileUrl||presign.fileUrl,bytes:f.size};
     }catch(e){
       if(e.message==='cancelado'){cancelled=true;return null;}
-      // 1 retry automático em erro de rede
       if(!e.message.startsWith('R2 403')&&!retried){
         retried=true;
         console.warn('[Upload] Retry:',f.name,e.message);
@@ -941,12 +916,10 @@ async function runUploadPresign(qid,files,params,acc){
     }
   }
 
-  // Processar em paralelo — cada uploadOne checa ctrl.signal.aborted internamente
   const indexed=fileArr.map((f,idx)=>({f,idx}));
   for(let i=0;i<indexed.length;i+=PARALLEL){
     if(cancelled||ctrl.signal.aborted)break;
     const batch=indexed.slice(i,i+PARALLEL);
-    // Mapear: se já cancelado ao iniciar um item do batch, retorna null imediatamente
     const results=await Promise.all(batch.map(({f,idx})=>{
       if(cancelled||ctrl.signal.aborted)return Promise.resolve(null);
       return uploadOne(f,idx);
@@ -962,7 +935,6 @@ async function runUploadPresign(qid,files,params,acc){
     toast('❌ Falha no upload','er'); return;
   }
 
-  // Confirmar em lote
   uploaded.sort((a,b)=>a.idx-b.idx);
   updateQueue(qid,total,total,`Agendando ${uploaded.length} vídeo(s)...`,'uploading');
   try{
@@ -990,7 +962,6 @@ async function runUploadPresign(qid,files,params,acc){
   setTimeout(()=>removeFromQueue(qid),60000);
 }
 
-// Dashboard
 async function loadDash(){
   const d=await api('/api/dashboard');
   const sr=d.stats||{};
@@ -1001,14 +972,12 @@ async function loadDash(){
   document.getElementById('ds-accs').textContent=sr.accounts||0;
   document.getElementById('ds-proc').textContent=sr.activeJobs||0;
   document.getElementById('ds-today').textContent=d.todayCount||0;
-  // Atualizar select de categoria do dashboard
   const dashCatSel=document.getElementById('dashCatFilter');
   if(dashCatSel){
     const curDashCat=dashCatSel.value;
     dashCatSel.innerHTML='<option value="all">Todas categorias</option>'+categories.map(c=>'<option value="'+c.id+'"'+(c.id===curDashCat?' selected':'')+'>'+c.name+'</option>').join('');
     if(curDashCat)dashCatSel.value=curDashCat;
   }
-  // Cards por conta — filtrar por categoria
   const dashCatId=dashCatSel?dashCatSel.value:'all';
   const accEl=document.getElementById('dashAccStats');
   const accStatsAll=d.accStats||[];
@@ -1018,7 +987,6 @@ async function loadDash(){
     const c=a.counts||{};
     const post=c.postado||0, pend=c.pendente||0, err=c.erro||0;
     const tot=c.todos||0;
-    // Barras relativas ao maior valor entre os 3 (nunca > 100%, nunca dividir por 0)
     const barMax=Math.max(post,pend,err,1);
     const pPost=Math.round(post/barMax*100),pPend=Math.round(pend/barMax*100),pErr=Math.round(err/barMax*100);
     return `<div class="dash-acc-card">
@@ -1037,7 +1005,6 @@ async function loadDash(){
       ${renderDailySchedule(a.dailySchedule)}
     </div>`;
   }).join('')+'</div>';}
-  // Lista de próximos
   const next=d.upcoming||[];const el=document.getElementById('dashNextList');
   if(!next.length){el.innerHTML='<div class="empty"><div class="empty-icon">📅</div><p>Nenhum post agendado</p></div>';return;}
   el.innerHTML=next.map(v=>`<div class="video-item"><div class="video-left"><span class="video-icon">⏰</span><div><div class="video-name">${v.originalName}</div><div class="video-account">@${v.username}</div></div></div><div class="video-right"><div><span class="badge b-pend">pendente</span><div class="video-date">${fmtDT(v.scheduledFor)}</div></div></div></div>`).join('');
@@ -1062,17 +1029,13 @@ updateIntervalPreview();
 async function addAccount() {
     const btn = document.getElementById('addAccBtn');
     const originalText = btn.innerHTML;
-    
     try {
         btn.disabled = true;
         btn.innerHTML = `<div class="spin"></div> Aguarde...`;
-
-        // Chama a rota que criamos no seu servidor do Railway
         const response = await fetch('/api/auth/facebook');
         const data = await response.json();
 
         if (data.url) {
-            // Redireciona você automaticamente para a página de autorização da Meta
             window.location.href = data.url;
         } else {
             toast('Não foi possível iniciar a conexão com a Meta.', 'er');
@@ -1089,13 +1052,10 @@ async function addAccount() {
 async function testAccount(id){toast('Testando...','in');const r=await api('/api/accounts/'+id+'/test',{method:'POST'});if(r.success)toast('✓ @'+r.username+' ok','ok');else toast('Erro: '+r.error,'er');}
 async function delAccount(id){if(!confirm('Remover esta conta?'))return;await api('/api/accounts/'+id,{method:'DELETE'});toast('Removida','wa');loadAccounts();}
 
-// Videos
 async function populateAccFilter(){
   const data=await api('/api/accounts');accounts=data;updateSbAccounts();
-  // Filtro de categoria
   const catSel=document.getElementById('catFilter');
   if(catSel){const curCat=catSel.value;catSel.innerHTML='<option value="all">Todas categorias</option>'+categories.map(c=>'<option value="'+c.id+'" '+(c.id===curCat?'selected':'')+'>'+c.name+'</option>').join('');}
-  // Filtrar contas pela categoria selecionada
   const catId=catSel?catSel.value:'all';
   const filtered=catId==='all'?accounts:accounts.filter(a=>a.categoryId===catId);
   const sel=document.getElementById('accFilter');const cur=sel.value;
@@ -1112,7 +1072,6 @@ async function loadVideos(){
   const ic={pendente:'⏰',processando:'🔄',postado:'✅',erro:'❌',cancelado:'🚫'};const sc={pendente:'b-pend',processando:'b-proc',postado:'b-post',erro:'b-erro',cancelado:'b-canc'};
   el.innerHTML=videos.map(v=>{
     const isProc=v.status==='processando';
-    // Calcular % a partir da mensagem de progresso "... (N/36)"
     let procPct=5,procMsg=v.errorMsg||'Processando...';
     if(isProc){
       const m=procMsg.match(/^\[(\d+)%\]\s*(.*)$/);
@@ -1121,9 +1080,8 @@ async function loadVideos(){
     const infoLine=isProc
       ? `<div class="video-proc-msg">⟳ ${procMsg.slice(0,80)}</div><div class="video-progress"><div class="video-progress-fill" style="width:${procPct}%"></div></div>`
       : (v.errorMsg?`<div style="font-size:10px;color:var(--rd);margin-top:1px">⚠ ${v.errorMsg.slice(0,120)}</div>`:'');
-    return `<div class="video-item" id="vi-${v.id}"><div class="video-left"><span class="video-icon">${ic[v.status]||'⏰'}</span><div style="min-width:0"><div class="video-name">${v.originalName}</div><div class="video-account">@${v.username}${v.cycle>1?' · ciclo '+v.cycle:''}</div>${infoLine}</div></div><div class="video-right"><div style="text-align:right"><span class="badge ${sc[v.status]}">${v.status}</span><div class="video-date">${v.status==='postado'?'✓ '+fmtDT(v.postedAt):fmtDT(v.scheduledFor)}</div></div><div class="video-actions">${v.b2Url?'<button class="icon-btn" title="Copiar URL" onclick="copyVideoUrl(\''+v.b2Url+'\',this)">🔗</button>':''}${v.status==='erro'?'<button class="icon-btn" onclick="retryVideo(\''+v.id+'\')">↺</button>':''}${v.status==='pendente'?'<button class="icon-btn" onclick="pubNow(\''+v.id+'\')">▶</button>':''}<button class="icon-btn danger" onclick="delVideo(\''+v.id+'\')">✕</button></div></div></div>`;
+    return `<div class="video-item" id="vi-${v.id}"><div class="video-left"><span class="video-icon">${ic[v.status]||'⏰'}</span><div style="min-width:0"><div class="video-name">${v.originalName}</div><div class="video-account">@${v.username}${v.cycle>1?' · ciclo '+v.cycle:''}</div>${infoLine}</div></div><div class="video-right"><div style="text-align:right"><span class="badge ${sc[v.status]}">${v.status}</span><div class="video-date">${v.status==='postado'?'✓ '+fmtDT(v.postedAt):fmtDT(v.scheduledFor)}</div></div><div class="video-actions">${v.b2Url?'<button class="icon-btn" title="Copiar URL" onclick="copyVideoUrl(''+v.b2Url+'',this)">🔗</button>':''}${v.status==='erro'?'<button class="icon-btn" onclick="retryVideo(''+v.id+'')">↺</button>':''}${v.status==='pendente'?'<button class="icon-btn" onclick="pubNow(''+v.id+'')">▶</button>':''}<button class="icon-btn danger" onclick="delVideo(''+v.id+'')">✕</button></div></div></div>`;
   }).join('');
-  // Iniciar polling para vídeos processando
   startProcessingPoll(videos.filter(v=>v.status==='processando').map(v=>v.id));
 }
 async function cancelPending(){const accId=document.getElementById('accFilter').value;const r=await api('/api/videos/cancel-pending'+(accId!=='all'?'?accountId='+accId:''),{method:'POST'});toast((r.cancelled||0)+' cancelados','wa');loadVideos();}
@@ -1133,14 +1091,11 @@ async function pubNow(id){
   const r=await api('/api/videos/'+id+'/publish-now',{method:'POST'});
   if(r.error){toast('Erro: '+r.error,'er');return;}
   toast('▶ Publicando...','in');
-  // Recarregar imediatamente para mostrar status atualizado
   await loadVideos();
-  // Iniciar polling para acompanhar o progresso em tempo real
   startProcessingPoll([id]);
 }
 async function delVideo(id){await api('/api/videos/'+id,{method:'DELETE'});loadVideos();}
 
-// Settings
 async function loadSettings(){
   const r=await api('/api/settings');
   const isAdm=currentUser&&currentUser.role==='admin';
@@ -1158,7 +1113,6 @@ async function loadSettings(){
 }
 async function saveSettings(){const body={b2KeyId:document.getElementById('b2-kid').value.trim(),b2AppKey:document.getElementById('b2-key').value.trim(),b2Bucket:document.getElementById('b2-bkt').value.trim(),b2Endpoint:document.getElementById('b2-ep').value.trim(),b2PublicUrl:document.getElementById('b2-pub').value.trim()};if(!body.b2KeyId||!body.b2Bucket){toast('Preencha Key ID e Bucket','er');return;}await api('/api/settings',{method:'POST',body:JSON.stringify(body)});toast('✅ Salvo!','ok');}
 
-// ═══ ADMIN PANEL ═══
 async function loadAdminUsers(){
   const [overview, stats] = await Promise.all([api('/api/admin/users-overview'), api('/api/admin/stats')]);
   allAdminUsers = overview;
@@ -1201,9 +1155,9 @@ function renderAdminUsers(){
   </div>`;
   }).join('');
 }
-async function adminChangePlan(id,plan){await api('/api/admin/users/'+id,{method:'PUT',body:JSON.stringify({plan})});toast('Plano atualizado','ok');loadAdminUsers();}
-async function adminToggleRole(id,current){await api('/api/admin/users/'+id,{method:'PUT',body:JSON.stringify({role:current==='admin'?'user':'admin'})});toast('Role atualizado','ok');loadAdminUsers();}
-async function adminToggleStatus(id,current){await api('/api/admin/users/'+id,{method:'PUT',body:JSON.stringify({status:current==='active'?'suspended':'active'})});toast('Status atualizado','ok');loadAdminUsers();}
+async function adminChangePlan(id,plan){await api('/api/admin/users/'+id,{method:'PUT',body:JSON.stringify({plan})});toast('Plano updated','ok');loadAdminUsers();}
+async function adminToggleRole(id,current){await api('/api/admin/users/'+id,{method:'PUT',body:JSON.stringify({role:current==='admin'?'user':'admin'})});toast('Role updated','ok');loadAdminUsers();}
+async function adminToggleStatus(id,current){await api('/api/admin/users/'+id,{method:'PUT',body:JSON.stringify({status:current==='active'?'suspended':'active'})});toast('Status updated','ok');loadAdminUsers();}
 async function adminDeleteUser(id){if(!confirm('Deletar este usuário?'))return;await api('/api/admin/users/'+id,{method:'DELETE'});toast('Deletado','wa');loadAdminUsers();}
 
 async function loadAdminActivity(){
@@ -1225,9 +1179,7 @@ async function openEditAccount(id){
   document.getElementById('ea-et').value=a.endTime||'23:00';
   document.getElementById('ea-ppd').value=a.postsPerDay||40;
   document.getElementById('ea-reschedule').checked=false;
-  // Categoria
-  const eaCat=document.getElementById('ea-cat');if(eaCat){eaCat.innerHTML='<option value="">Sem categoria</option>'+categories.map(c=>'<option value="'+c.id+'"'+(a.categoryId===c.id?' selected':'')+'>'+c.name+'</option>').join('');}
-  // Buscar pendentes da conta
+  const eaCat=document.getElementById('ea-cat');if(eaCat){eaCat.innerHTML='<option value="">Sem categoria</option>'+categories.map(c=>'<option value="' + c.id + '"' + (a.categoryId===c.id?' selected':'') + '>' + c.name + '</option>').join('');}
   try{
     const vr=await api('/api/videos?accountId='+id+'&status=pendente&limit=99999');
     _eaPendingCount=(vr.videos||[]).length;
@@ -1253,8 +1205,7 @@ function updateEaPreview(){
   const iv=ppd>1?Math.floor(w/(ppd-1)):w;
   const daysFor=_eaPendingCount>0?Math.ceil(_eaPendingCount/ppd):null;
   document.getElementById('eaIntervalPreview').textContent=
-    'Intervalo: '+iv+'min · Janela: '+Math.floor(w/60)+'h'+String(w%60).padStart(2,'0')+'min'
-    +(daysFor?' · '+_eaPendingCount+' pendentes = ~'+daysFor+' dia(s) para zerar':'');
+    'Intervalo: '+iv+'min · Janela: '+Math.floor(w/60)+'h'+String(w%60).padStart(2,'0')+'min'+(daysFor?' · '+_eaPendingCount+' pendentes = ~'+daysFor+' dia(s) para zerar':'');
 }
 async function saveEditAccount(){
   const id=document.getElementById('ea-id').value;
@@ -1266,11 +1217,9 @@ async function saveEditAccount(){
   if(!id){toast('Erro: conta não encontrada','er');return;}
   const btn=document.getElementById('eaSaveBtn');btn.disabled=true;btn.textContent='Salvando...';
   try{
-    // Salvar configs
     const eaCatEl=document.getElementById('ea-cat');const categoryId=eaCatEl?eaCatEl.value||null:undefined;
     const r=await api('/api/accounts/'+id,{method:'PUT',body:JSON.stringify({label,startTime,endTime,postsPerDay,categoryId})});
     if(!r.success){toast('Erro: '+(r.error||'desconhecido'),'er');return;}
-    // Reagendar se solicitado
     if(doReschedule&&_eaPendingCount>0){
       btn.textContent='Reagendando...';
       const rr=await api('/api/accounts/'+id+'/reschedule',{method:'POST',body:JSON.stringify({postsPerDay,startTime,endTime})});
@@ -1286,7 +1235,6 @@ async function saveEditAccount(){
   }finally{btn.disabled=false;btn.textContent='💾 Salvar alterações';}
 }
 
-// ── POLLING DE VÍDEOS PROCESSANDO ────────────────────────────────
 let _pollTimer=null, _pollIds=new Set();
 function startProcessingPoll(ids){
   ids.forEach(id=>_pollIds.add(id));
@@ -1304,14 +1252,12 @@ async function pollProcessing(){
       const el=document.getElementById('vi-'+id);
       if(!el){toRemove.push(id);continue;}
       if(r.status!=='processando'){
-        // Terminou — recarregar lista completa
         toRemove.push(id);
         loadVideos();
         if(r.status==='postado') toast('✅ Vídeo publicado!','ok');
         if(r.status==='erro') toast('❌ Erro: '+(r.errorMsg||'').slice(0,60),'er');
         continue;
       }
-      // Ainda processando — atualizar barra inline sem recarregar lista
       const raw=r.errorMsg||'Processando...';
       const m=raw.match(/^\[(\d+)%\]\s*(.*)$/);
       const pct=m?parseInt(m[1]):5;
@@ -1326,30 +1272,23 @@ async function pollProcessing(){
   if(!_pollIds.size){clearInterval(_pollTimer);_pollTimer=null;}
 }
 
-// ── CATEGORIAS ──────────────────────────────────────────────────────────
 async function loadCategories() {
   categories = await api('/api/categories').catch(() => []);
   renderCatList();
-  // Atualizar select no modal de add conta
   const sel = document.getElementById('aa-cat');
   if (sel) {
     const cur = sel.value;
-    sel.innerHTML = '<option value="">Sem categoria</option>' +
-      categories.map(c => '<option value="' + c.id + '"' + (c.id===cur?' selected':'') + '>' + c.name + '</option>').join('');
+    sel.innerHTML = '<option value="">Sem categoria</option>' + categories.map(c => '<option value="' + c.id + '"' + (c.id===cur?' selected':'') + '>' + c.name + '</option>').join('');
   }
-  // Atualizar filtro de categoria nos vídeos
   const catSel = document.getElementById('catFilter');
   if (catSel) {
     const cur = catSel.value;
-    catSel.innerHTML = '<option value="all">Todas categorias</option>' +
-      categories.map(c => '<option value="' + c.id + '"' + (c.id===cur?' selected':'') + '>' + c.name + '</option>').join('');
+    catSel.innerHTML = '<option value="all">Todas categorias</option>' + categories.map(c => '<option value="' + c.id + '"' + (c.id===cur?' selected':'') + '>' + c.name + '</option>').join('');
   }
-  // Atualizar filtro de categoria no dashboard
   const dashCatSel2 = document.getElementById('dashCatFilter');
   if (dashCatSel2) {
     const cur2 = dashCatSel2.value;
-    dashCatSel2.innerHTML = '<option value="all">Todas categorias</option>' +
-      categories.map(c => '<option value="' + c.id + '"' + (c.id===cur2?' selected':'') + '>' + c.name + '</option>').join('');
+    dashCatSel2.innerHTML = '<option value="all">Todas categorias</option>' + categories.map(c => '<option value="' + c.id + '"' + (c.id===cur2?' selected':'') + '>' + c.name + '</option>').join('');
   }
 }
 
@@ -1394,20 +1333,6 @@ async function deleteCategoryById(id) {
   const c = categories.find(x => x.id === id);
   if (!c) return;
   if (!confirm('Excluir categoria "' + c.name + '"? As contas associadas ficarão sem categoria.')) return;
-  await api('/api/categories/' + id, { method: 'DELETE' });
-  await loadCategories();
-  toast('Categoria excluída', 'wa');
-}
-
-async function renameCategory(id, currentName, currentColor) {
-  const name = prompt('Novo nome:', currentName);
-  if (!name || !name.trim()) return;
-  await api('/api/categories/' + id, { method: 'PUT', body: JSON.stringify({ name: name.trim(), color: currentColor }) });
-  await loadCategories();
-}
-
-async function deleteCategory(id, name) {
-  if (!confirm('Excluir categoria "' + name + '"? As contas associadas ficarão sem categoria.')) return;
   await api('/api/categories/' + id, { method: 'DELETE' });
   await loadCategories();
   toast('Categoria excluída', 'wa');
@@ -1459,7 +1384,6 @@ function copyVideoUrl(url, btn) {
     toast('URL copiada!', 'ok');
     setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
   }).catch(() => {
-    // fallback para browsers sem clipboard API
     const ta = document.createElement('textarea');
     ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select();
@@ -1470,7 +1394,6 @@ function copyVideoUrl(url, btn) {
 }
 
 async function appInit(){
-  // Resetar estado ao entrar — evita vazar dados de sessão anterior
   accounts=[];categories=[];uploadQueue=[];
   updateSbAccounts();
   renderQueue();
@@ -1481,7 +1404,6 @@ async function appInit(){
 }
 setInterval(()=>{if(!currentUser)return;const a=document.querySelector('.panel.act')?.id;if(a==='panel-dash')loadDash();if(a==='panel-videos')loadVideos();},30000);
 </script>
-
 
 <!-- MODAL: Editar Conta -->
 <div class="modal-bg" id="modalEditAcc">
