@@ -86,8 +86,7 @@ function userJson(u) {
 
 async function logActivity(user, action, detail) {
   try { await q(`INSERT INTO activity(user_id,email,action,detail) VALUES($1,$2,$3,$4)`,
-    [user ? user.id : null, user ? user.email : '', action, detail || null]);
-  } catch (e) {}
+    [user ? user.id : null, user ? user.email : '', action, detail || null]); } catch (e) {}
 }
 
 async function getUserByToken(token) {
@@ -121,25 +120,25 @@ function adminOnly(req, res, next) {
 async function createSession(res, userId) {
   const token = crypto.randomBytes(32).toString('hex');
   await q(`INSERT INTO sessions(token,user_id,expires_at) VALUES($1,$2,now() + interval '30 days')`, [token, userId]);
+  // Cookie httpOnly em paralelo ao token do localStorage — necessário para o fluxo OAuth da Meta
   res.setHeader('Set-Cookie', `ct_token=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`);
   return token;
 }
 
 async function getSettings() {
   const r = await q(`SELECT key, value FROM settings`);
-  const s = {};
-  r.rows.forEach(row => s[row.key] = row.value);
+  const s = {}; r.rows.forEach(row => s[row.key] = row.value);
   return s;
 }
 
-fn = s3From = function(s) {
+function s3From(s) {
   return new S3Client({
     region: 'auto',
     endpoint: s.b2Endpoint,
     forcePathStyle: true,
     credentials: { accessKeyId: s.b2KeyId, secretAccessKey: s.b2AppKey }
   });
-};
+}
 
 function baseUrl(req) {
   return APP_URL || `${req.protocol}://${req.get('host')}`;
@@ -159,9 +158,8 @@ app.post('/api/auth/signup', async (req, res) => {
     const em = String(email).trim().toLowerCase();
     const exists = await q(`SELECT 1 FROM users WHERE email=$1`, [em]);
     if (exists.rows.length) return res.json({ error: 'E-mail já cadastrado' });
-    
     const count = await q(`SELECT count(*)::int AS n FROM users`);
-    const role = count.rows[0].n === 0 ? 'admin' : 'user';
+    const role = count.rows[0].n === 0 ? 'admin' : 'user'; // primeiro usuário vira admin
     const id = uid();
     const hash = await bcrypt.hash(password, 10);
     await q(`INSERT INTO users(id,name,email,password_hash,role) VALUES($1,$2,$3,$4,$5)`,
@@ -213,9 +211,9 @@ app.get('/api/auth/facebook', async (req, res) => {
     await q(`DELETE FROM oauth_states WHERE created_at < now() - interval '15 minutes'`);
     await q(`INSERT INTO oauth_states(state,user_id) VALUES($1,$2)`, [state, u.id]);
     const redirect = `${baseUrl(req)}/api/auth/facebook/callback`;
- 
     const scope = 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management';
-    const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${process.env.META_APP_ID}&redirect_uri=${encodeURIComponent(redirect)}&state=${state}&response_type=code&scope=${encodeURIComponent(scope)}`;
+    const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${process.env.META_APP_ID}` +
+      `&redirect_uri=${encodeURIComponent(redirect)}&state=${state}&response_type=code&scope=${encodeURIComponent(scope)}`;
     res.json({ url });
   } catch (e) { console.error(e); res.json({ error: 'Erro ao iniciar conexão' }); }
 });
@@ -229,14 +227,21 @@ app.get('/api/auth/facebook/callback', async (req, res) => {
     const userId = st.rows[0].user_id;
     const redirect = `${baseUrl(req)}/api/auth/facebook/callback`;
 
-    let r = await fetch(`${GRAPH}/oauth/access_token?client_id=${process.env.META_APP_ID}&redirect_uri=${encodeURIComponent(redirect)}&client_secret=${process.env.META_APP_SECRET}&code=${code}`)
+    // 1. Troca code por token
+    let r = await fetch(`${GRAPH}/oauth/access_token?client_id=${process.env.META_APP_ID}` +
+      `&redirect_uri=${encodeURIComponent(redirect)}&client_secret=${process.env.META_APP_SECRET}&code=${code}`)
       .then(x => x.json());
     if (r.error) { console.error('FB token:', r.error); return res.redirect('/?fb=token_error'); }
 
-    const ll = await fetch(`${GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.META_APP_ID}&client_secret=${process.env.META_APP_SECRET}&fb_exchange_token=${r.access_token}`).then(x => x.json());
+    // 2. Token de longa duração (~60 dias)
+    const ll = await fetch(`${GRAPH}/oauth/access_token?grant_type=fb_exchange_token` +
+      `&client_id=${process.env.META_APP_ID}&client_secret=${process.env.META_APP_SECRET}` +
+      `&fb_exchange_token=${r.access_token}`).then(x => x.json());
     const userToken = ll.access_token || r.access_token;
 
-    const pages = await fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100&access_token=${userToken}`).then(x => x.json());
+    // 3. Páginas + contas Instagram Business vinculadas
+    const pages = await fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}` +
+      `&limit=100&access_token=${userToken}`).then(x => x.json());
     if (pages.error) { console.error('FB pages:', pages.error); return res.redirect('/?fb=pages_error'); }
 
     let added = 0;
@@ -248,7 +253,8 @@ app.get('/api/auth/facebook/callback', async (req, res) => {
         await q(`UPDATE accounts SET access_token=$1, username=$2 WHERE id=$3`,
           [p.access_token, ig.username || p.name, existing.rows[0].id]);
       } else {
-        await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token) VALUES($1,$2,$3,$4,$5,$6)`,
+        await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token)
+                 VALUES($1,$2,$3,$4,$5,$6)`,
           [uid(), userId, ig.username || p.name, p.name, ig.id, p.access_token]);
       }
       added++;
@@ -293,7 +299,8 @@ app.get('/api/captions', auth, async (req, res) => {
 
 app.post('/api/captions', auth, async (req, res) => {
   const captions = Array.isArray((req.body || {}).captions) ? req.body.captions : [];
-  await q(`INSERT INTO captions(user_id,data) VALUES($1,$2) ON CONFLICT (user_id) DO UPDATE SET data=$2`, [req.user.id, JSON.stringify(captions)]);
+  await q(`INSERT INTO captions(user_id,data) VALUES($1,$2)
+           ON CONFLICT (user_id) DO UPDATE SET data=$2`, [req.user.id, JSON.stringify(captions)]);
   res.json({ success: true });
 });
 
@@ -328,6 +335,7 @@ function intervalMinutes(acc) {
   return ppd > 1 ? Math.floor(w / (ppd - 1)) : w;
 }
 
+// Gera `count` horários dentro da janela da conta, sempre DEPOIS de fromDate
 function computeSlots(acc, count, fromDate) {
   const st = parseHM(acc.start_time, 2, 0);
   const ppd = Math.max(1, acc.posts_per_day || 40);
@@ -416,8 +424,10 @@ app.post('/api/accounts/:id/reschedule', auth, async (req, res) => {
       start_time: startTime || a.start_time,
       end_time: endTime || a.end_time
     };
-    const pend = await q(`SELECT id FROM videos WHERE account_id=$1 AND status='pendente' ORDER BY scheduled_for NULLS LAST, created_at`, [a.id]);
+    const pend = await q(`SELECT id FROM videos WHERE account_id=$1 AND status='pendente'
+                          ORDER BY scheduled_for NULLS LAST, created_at`, [a.id]);
     if (!pend.rows.length) return res.json({ success: true, rescheduled: 0 });
+    // Redistribui a partir de amanhã, no início da janela
     const from = new Date(); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() + 1);
     const slots = computeSlots(acc, pend.rows.length, new Date(from.getTime() - 1));
     for (let i = 0; i < pend.rows.length; i++)
@@ -446,10 +456,11 @@ app.get('/api/videos/presign', auth, async (req, res) => {
 app.post('/api/videos/confirm-batch', auth, async (req, res) => {
   try {
     const { accountId, batchId, cycles, caption, hashtags, videos } = req.body || {};
-    if (!typeof videos === 'object' || !videos.length) return res.json({ error: 'Nenhum vídeo enviado' });
+    if (!Array.isArray(videos) || !videos.length) return res.json({ error: 'Nenhum vídeo enviado' });
     const r = await q(`SELECT * FROM accounts WHERE id=$1 AND user_id=$2`, [accountId, req.user.id]);
     const acc = r.rows[0];
     if (!acc) return res.json({ error: 'Conta não encontrada' });
+    // Continua a fila: começa depois do último pendente (ou de agora)
     const last = await q(`SELECT MAX(scheduled_for) AS m FROM videos WHERE account_id=$1 AND status='pendente'`, [acc.id]);
     const from = new Date(Math.max(Date.now(), last.rows[0].m ? new Date(last.rows[0].m).getTime() : 0));
     const cyc = Math.max(1, parseInt(cycles) || 1);
@@ -458,8 +469,10 @@ app.post('/api/videos/confirm-batch', auth, async (req, res) => {
     for (let c = 1; c <= cyc; c++) {
       for (const v of videos) {
         if (!v.publicFileUrl) continue;
-        await q(`INSERT INTO videos(id,user_id,account_id,batch_id,original_name,key,b2_url,bytes,caption,hashtags,cycle,status,scheduled_for) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendente',$12)`,
-          [uid(), req.user.id, acc.id, batchId || null, v.originalName || 'video', v.key || null, v.publicFileUrl, v.bytes || 0, caption || '', hashtags || '', c, slots[n]]);
+        await q(`INSERT INTO videos(id,user_id,account_id,batch_id,original_name,key,b2_url,bytes,caption,hashtags,cycle,status,scheduled_for)
+                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendente',$12)`,
+          [uid(), req.user.id, acc.id, batchId || null, v.originalName || 'video', v.key || null,
+           v.publicFileUrl, v.bytes || 0, caption || '', hashtags || '', c, slots[n]]);
         n++;
       }
     }
@@ -492,9 +505,13 @@ app.get('/api/videos', auth, async (req, res) => {
     let whereList = where;
     const listParams = [...params];
     if (status && status !== 'todos') { listParams.push(status); whereList += ` AND v.status = $${listParams.length}`; }
-    const order = status === 'pendente' ? `v.scheduled_for ASC` : `COALESCE(v.posted_at, v.scheduled_for, v.created_at) DESC`;
+    const order = status === 'pendente'
+      ? `v.scheduled_for ASC`
+      : `COALESCE(v.posted_at, v.scheduled_for, v.created_at) DESC`;
     listParams.push(limit);
-    const vr = await q(`SELECT v.*, a.username, a.label FROM videos v LEFT JOIN accounts a ON a.id = v.account_id WHERE ${whereList} ORDER BY ${order} LIMIT $${listParams.length}`, listParams);
+    const vr = await q(`SELECT v.*, a.username, a.label FROM videos v
+                        LEFT JOIN accounts a ON a.id = v.account_id
+                        WHERE ${whereList} ORDER BY ${order} LIMIT $${listParams.length}`, listParams);
     res.json({ videos: vr.rows.map(videoJson), counts });
   } catch (e) { console.error(e); res.json({ videos: [], counts: {} }); }
 });
@@ -514,14 +531,17 @@ app.get('/api/videos/:id/status', auth, async (req, res) => {
 });
 
 app.post('/api/videos/:id/retry', auth, async (req, res) => {
-  await q(`UPDATE videos SET status='pendente', error_msg=NULL, scheduled_for=now() + interval '2 minutes' WHERE id=$1 AND user_id=$2 AND status IN ('erro','cancelado')`, [req.params.id, req.user.id]);
+  await q(`UPDATE videos SET status='pendente', error_msg=NULL, scheduled_for=now() + interval '2 minutes'
+           WHERE id=$1 AND user_id=$2 AND status IN ('erro','cancelado')`, [req.params.id, req.user.id]);
   res.json({ success: true });
 });
 
 app.post('/api/videos/:id/publish-now', auth, async (req, res) => {
-  const r = await q(`UPDATE videos SET scheduled_for=now(), status='pendente', error_msg=NULL WHERE id=$1 AND user_id=$2 AND status IN ('pendente','erro','cancelado') RETURNING id`, [req.params.id, req.user.id]);
+  const r = await q(`UPDATE videos SET scheduled_for=now(), status='pendente', error_msg=NULL
+                     WHERE id=$1 AND user_id=$2 AND status IN ('pendente','erro','cancelado') RETURNING id`,
+    [req.params.id, req.user.id]);
   if (!r.rows.length) return res.json({ error: 'Vídeo não encontrado ou já em processamento' });
-  setTimeout(tick, 500);
+  setTimeout(tick, 500); // dispara o worker imediatamente
   res.json({ success: true });
 });
 
@@ -534,16 +554,34 @@ app.delete('/api/videos/:id', auth, async (req, res) => {
 app.get('/api/dashboard', auth, async (req, res) => {
   try {
     const uidP = [req.user.id];
-    const sr = await q(`SELECT count(*)::int AS total, count(*) FILTER (WHERE status='postado')::int AS postado, count(*) FILTER (WHERE status='pendente')::int AS pendente, count(*) FILTER (WHERE status='erro')::int AS erro, count(*) FILTER (WHERE status='processando')::int AS "activeJobs" FROM videos WHERE user_id=$1`, uidP);
+    const sr = await q(`SELECT
+        count(*)::int AS total,
+        count(*) FILTER (WHERE status='postado')::int AS postado,
+        count(*) FILTER (WHERE status='pendente')::int AS pendente,
+        count(*) FILTER (WHERE status='erro')::int AS erro,
+        count(*) FILTER (WHERE status='processando')::int AS "activeJobs"
+      FROM videos WHERE user_id=$1`, uidP);
     const accCount = await q(`SELECT count(*)::int AS n FROM accounts WHERE user_id=$1`, uidP);
-    const today = await q(`SELECT count(*)::int AS n FROM videos WHERE user_id=$1 AND status='postado' AND (posted_at AT TIME ZONE '${TZ}')::date = (now() AT TIME ZONE '${TZ}')::date`, uidP);
+    const today = await q(`SELECT count(*)::int AS n FROM videos
+      WHERE user_id=$1 AND status='postado'
+      AND (posted_at AT TIME ZONE '${TZ}')::date = (now() AT TIME ZONE '${TZ}')::date`, uidP);
 
     const accs = await q(`SELECT * FROM accounts WHERE user_id=$1 ORDER BY created_at`, uidP);
     const accStats = [];
     for (const a of accs.rows) {
-      const c = await q(`SELECT count(*)::int AS todos, count(*) FILTER (WHERE status='postado')::int AS postado, count(*) FILTER (WHERE status='pendente')::int AS pendente, count(*) FILTER (WHERE status='erro')::int AS erro FROM videos WHERE account_id=$1`, [a.id]);
-      const times = await q(`SELECT MIN(scheduled_for) FILTER (WHERE status='pendente' AND scheduled_for > now()) AS next, MAX(scheduled_for) FILTER (WHERE status='pendente') AS last_pending, MAX(posted_at) FILTER (WHERE status='postado') AS last_posted FROM videos WHERE account_id=$1`, [a.id]);
-      const daily = await q(`SELECT (scheduled_for AT TIME ZONE '${TZ}')::date::text AS d, count(*)::int AS n FROM videos WHERE account_id=$1 AND status='pendente' GROUP BY 1 ORDER BY 1 LIMIT 7`, [a.id]);
+      const c = await q(`SELECT
+          count(*)::int AS todos,
+          count(*) FILTER (WHERE status='postado')::int AS postado,
+          count(*) FILTER (WHERE status='pendente')::int AS pendente,
+          count(*) FILTER (WHERE status='erro')::int AS erro
+        FROM videos WHERE account_id=$1`, [a.id]);
+      const times = await q(`SELECT
+          MIN(scheduled_for) FILTER (WHERE status='pendente' AND scheduled_for > now()) AS next,
+          MAX(scheduled_for) FILTER (WHERE status='pendente') AS last_pending,
+          MAX(posted_at) FILTER (WHERE status='postado') AS last_posted
+        FROM videos WHERE account_id=$1`, [a.id]);
+      const daily = await q(`SELECT (scheduled_for AT TIME ZONE '${TZ}')::date::text AS d, count(*)::int AS n
+        FROM videos WHERE account_id=$1 AND status='pendente' GROUP BY 1 ORDER BY 1 LIMIT 7`, [a.id]);
       const dailySchedule = {};
       daily.rows.forEach(r => dailySchedule[r.d] = r.n);
       accStats.push({
@@ -556,33 +594,53 @@ app.get('/api/dashboard', auth, async (req, res) => {
       });
     }
 
-    const up = await q(`SELECT v.original_name, v.scheduled_for, a.username, a.label FROM videos v LEFT JOIN accounts a ON a.id=v.account_id WHERE v.user_id=$1 AND v.status='pendente' ORDER BY v.scheduled_for LIMIT 8`, uidP);
+    const up = await q(`SELECT v.original_name, v.scheduled_for, a.username, a.label
+      FROM videos v LEFT JOIN accounts a ON a.id=v.account_id
+      WHERE v.user_id=$1 AND v.status='pendente' ORDER BY v.scheduled_for LIMIT 8`, uidP);
+
     res.json({
       stats: { ...sr.rows[0], accounts: accCount.rows[0].n },
       todayCount: today.rows[0].n,
       accStats,
-      upcoming: up.rows.map(v => ({ originalName: v.original_name, username: v.username || v.label || '?', scheduledFor: v.scheduled_for }))
+      upcoming: up.rows.map(v => ({
+        originalName: v.original_name,
+        username: v.username || v.label || '?',
+        scheduledFor: v.scheduled_for
+      }))
     });
   } catch (e) { console.error(e); res.json({ stats: {}, accStats: [], upcoming: [] }); }
 });
 
 // ═══ ADMIN ══════════════════════════════════════════════════════
 app.get('/api/admin/users-overview', auth, adminOnly, async (req, res) => {
-  const r = await q(`SELECT u.id, u.name, u.email, u.role, u.status, u.plan, u.login_count, u.created_at, (SELECT count(*) FROM accounts a WHERE a.user_id=u.id)::int AS acc_count, (SELECT count(*) FROM videos v WHERE v.user_id=u.id)::int AS v_total, (SELECT count(*) FROM videos v WHERE v.user_id=u.id AND v.status='postado')::int AS v_postado, (SELECT count(*) FROM videos v WHERE v.user_id=u.id AND v.status='pendente')::int AS v_pendente, (SELECT count(*) FROM videos v WHERE v.user_id=u.id AND v.status='erro')::int AS v_erro FROM users u ORDER BY u.created_at`);
+  const r = await q(`SELECT u.id, u.name, u.email, u.role, u.status, u.plan, u.login_count, u.created_at,
+      (SELECT count(*) FROM accounts a WHERE a.user_id=u.id)::int AS acc_count,
+      (SELECT count(*) FROM videos v WHERE v.user_id=u.id)::int AS v_total,
+      (SELECT count(*) FROM videos v WHERE v.user_id=u.id AND v.status='postado')::int AS v_postado,
+      (SELECT count(*) FROM videos v WHERE v.user_id=u.id AND v.status='pendente')::int AS v_pendente,
+      (SELECT count(*) FROM videos v WHERE v.user_id=u.id AND v.status='erro')::int AS v_erro
+    FROM users u ORDER BY u.created_at`);
   res.json(r.rows.map(u => ({
-    id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, plan: u.plan, loginCount: u.login_count, createdAt: u.created_at, accountCount: u.accountCount, videoStats: { total: u.v_total, postado: u.v_postado, pendente: u.v_pendente, erro: u.v_erro }
+    id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, plan: u.plan,
+    loginCount: u.login_count, createdAt: u.created_at, accountCount: u.acc_count,
+    videoStats: { total: u.v_total, postado: u.v_postado, pendente: u.v_pendente, erro: u.v_erro }
   })));
 });
 
 app.get('/api/admin/stats', auth, adminOnly, async (req, res) => {
-  const r = await q(`SELECT count(*)::int AS total, count(*) FILTER (WHERE status='active')::int AS active, count(*) FILTER (WHERE role='admin')::int AS admins FROM users`);
-  const logins = await q(`SELECT count(*)::int AS n FROM activity WHERE action='login' AND (created_at AT TIME ZONE '${TZ}')::date = (now() AT TIME ZONE '${TZ}')::date`);
+  const r = await q(`SELECT count(*)::int AS total,
+      count(*) FILTER (WHERE status='active')::int AS active,
+      count(*) FILTER (WHERE role='admin')::int AS admins
+    FROM users`);
+  const logins = await q(`SELECT count(*)::int AS n FROM activity
+    WHERE action='login' AND (created_at AT TIME ZONE '${TZ}')::date = (now() AT TIME ZONE '${TZ}')::date`);
   res.json({ ...r.rows[0], todayLogins: logins.rows[0].n });
 });
 
 app.put('/api/admin/users/:id', auth, adminOnly, async (req, res) => {
   const { plan, role, status } = req.body || {};
-  await q(`UPDATE users SET plan=COALESCE($1,plan), role=COALESCE($2,role), status=COALESCE($3,status) WHERE id=$4`, [plan || null, role || null, status || null, req.params.id]);
+  await q(`UPDATE users SET plan=COALESCE($1,plan), role=COALESCE($2,role), status=COALESCE($3,status) WHERE id=$4`,
+    [plan || null, role || null, status || null, req.params.id]);
   await logActivity(req.user, 'admin_update_user', JSON.stringify({ id: req.params.id, plan, role, status }));
   res.json({ success: true });
 });
@@ -602,7 +660,8 @@ app.get('/api/admin/activity', auth, adminOnly, async (req, res) => {
 // ═══ WORKER — publica vídeos agendados no Instagram ═════════════
 function buildCaption(v) {
   const cap = (v.caption || '').trim();
-  const tags = (v.hashtags || '').trim().split(/[\s,]+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t).join(' ');
+  const tags = (v.hashtags || '').trim().split(/[\s,]+/).filter(Boolean)
+    .map(t => t.startsWith('#') ? t : '#' + t).join(' ');
   return [cap, tags].filter(Boolean).join('\n\n').slice(0, 2200);
 }
 
@@ -618,14 +677,19 @@ async function publishVideo(v) {
     await setProgress(v.id, 8, 'Criando container na Meta...');
     const create = await fetch(`${GRAPH}/${v.ig_user_id}/media`, {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ media_type: 'REELS', video_url: v.b2_url, caption: buildCaption(v), access_token: v.access_token })
+      body: new URLSearchParams({
+        media_type: 'REELS', video_url: v.b2_url,
+        caption: buildCaption(v), access_token: v.access_token
+      })
     }).then(x => x.json());
     if (create.error) throw new Error(create.error.message || 'Erro ao criar container');
 
+    // Aguarda o Instagram processar o vídeo (até ~3 min)
     let ok = false;
     for (let i = 1; i <= 36; i++) {
       await sleep(5000);
-      const st = await fetch(`${GRAPH}/${create.id}?fields=status_code&access_token=${v.access_token}`).then(x => x.json()).catch(() => ({}));
+      const st = await fetch(`${GRAPH}/${create.id}?fields=status_code&access_token=${v.access_token}`)
+        .then(x => x.json()).catch(() => ({}));
       if (st.status_code === 'FINISHED') { ok = true; break; }
       if (st.status_code === 'ERROR') throw new Error('O Instagram rejeitou o vídeo (formato/duração)');
       await setProgress(v.id, Math.min(90, 10 + Math.round(i / 36 * 78)), `Processando no Instagram (${i}/36)`);
@@ -643,14 +707,18 @@ async function publishVideo(v) {
     console.log(`✅ Publicado: ${v.original_name} (@${v.username || '?'})`);
   } catch (e) {
     console.error(`❌ Falha ao publicar ${v.id}:`, e.message);
-    await q(`UPDATE videos SET status='erro', error_msg=$2 WHERE id=$1`, [v.id, String(e.message || 'Erro desconhecido').slice(0, 300)]).catch(() => {});
+    await q(`UPDATE videos SET status='erro', error_msg=$2 WHERE id=$1`,
+      [v.id, String(e.message || 'Erro desconhecido').slice(0, 300)]).catch(() => {});
   }
 }
 
 const publishing = new Set();
 async function tick() {
   try {
-    const due = await q(`SELECT v.*, a.ig_user_id, a.access_token, a.username FROM videos v JOIN accounts a ON a.id = v.account_id WHERE v.status='pendente' AND v.scheduled_for <= now() ORDER BY v.scheduled_for LIMIT 3`);
+    const due = await q(`SELECT v.*, a.ig_user_id, a.access_token, a.username
+      FROM videos v JOIN accounts a ON a.id = v.account_id
+      WHERE v.status='pendente' AND v.scheduled_for <= now()
+      ORDER BY v.scheduled_for LIMIT 3`);
     for (const v of due.rows) {
       if (publishing.has(v.id)) continue;
       publishing.add(v.id);
@@ -660,6 +728,7 @@ async function tick() {
   } catch (e) { console.error('tick:', e.message); }
 }
 
+// ═══ STATIC + BOOT ══════════════════════════════════════════════
 app.use(express.static(__dirname, { index: false }));
 app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
