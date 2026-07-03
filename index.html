@@ -679,13 +679,45 @@ document.getElementById('loginPass').addEventListener('keydown', e => { if (e.ke
 document.getElementById('signupPass2').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
 
 // ═══ CHECK EXISTING SESSION ON LOAD ═══
-async function checkSession() {
-  if (!authToken) return;
-  try {
-    const r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + authToken } }).then(r => r.json());
-    if (r.user) { currentUser = r.user; enterApp(); }
-    else { authToken = ''; localStorage.removeItem('ct_token'); }
-  } catch { authToken = ''; localStorage.removeItem('ct_token'); }
+function enterApp() {
+  const authScreen = document.getElementById('authScreen');
+  const appWrap = document.getElementById('appWrap');
+  
+  // 1. Esconde a tela de login forçando a remoção de conflitos
+  if (authScreen) {
+    authScreen.classList.add('hidden');
+    authScreen.style.setProperty('display', 'none', 'important');
+  }
+  
+  // 2. Mostra o painel principal forçando a exibição (anula o !important do logout)
+  if (appWrap) {
+    appWrap.classList.add('show');
+    appWrap.style.setProperty('display', 'flex', 'important');
+  }
+
+  // 3. Prevenção de travamento caso 'currentUser' venha vazio da API
+  const user = currentUser || {};
+  const userName = user.name || 'Usuário';
+  const userRole = user.role || 'user';
+
+  // 4. Atualiza os elementos da interface com segurança
+  const avatarEl = document.getElementById('sbUserAvatar');
+  if (avatarEl) avatarEl.textContent = userName.charAt(0).toUpperCase();
+  
+  const nameEl = document.getElementById('sbUserName');
+  if (nameEl) nameEl.textContent = userName;
+  
+  const roleEl = document.getElementById('sbUserRole');
+  if (roleEl) roleEl.textContent = userRole === 'admin' ? '🔒 Administrador' : 'Usuário';
+  
+  const adminNav = document.getElementById('adminNav');
+  if (adminNav) adminNav.style.display = userRole === 'admin' ? 'block' : 'none';
+  
+  const settingsNav = document.getElementById('n-settings');
+  if (settingsNav) settingsNav.style.display = userRole === 'admin' ? 'flex' : 'none';
+
+  // Inicia o app
+  appInit();
 }
 checkSession();
 
