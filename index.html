@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MeuSacoTools — Automação de postagens</title>
+<title>7 ASpA — Automação de postagens</title>
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap');
@@ -383,9 +383,8 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
     </div>
     <div class="btn-row">
       <button class="btn btn-g" onclick="closeModal('modalAddAcc')">Cancelar</button>
-    <button class="btn btn-p" id="addAccBtn" style="background:#1877F2; width:100%; justify-content:center; gap:8px;" onclick="addAccount()">
-    ✅ Adicionar / Instagram
-</button>
+      <button class="btn btn-p" id="addAccBtn" onclick="addAccount()">✅ Verificar e adicionar</button>
+    </div>
   </div>
 </div>
 
@@ -628,39 +627,17 @@ async function doSignup() {
 
 function doLogout() {
   if (authToken) fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + authToken } }).catch(() => {});
-  
-  // 1. Limpa rigorosamente os dados de segurança
-  authToken = ''; 
-  localStorage.removeItem('ct_token'); 
-  currentUser = null;
-  
-  // 2. Limpa todo estado da sessão
+  authToken = ''; localStorage.removeItem('ct_token'); currentUser = null;
+  // Limpar todo estado da sessão
   accounts = [];
   categories = [];
   uploadQueue = [];
-  if (typeof uploadAbortMap !== 'undefined' && uploadAbortMap.clear) uploadAbortMap.clear();
-  
-  // 3. Força os elementos visuais a resetarem (Garante que tudo limpe no HTML)
-  if (document.getElementById('sbAccountList')) document.getElementById('sbAccountList').innerHTML = '';
-  if (document.getElementById('sbQueue')) document.getElementById('sbQueue').style.display = 'none';
-  if (document.getElementById('queueList')) document.getElementById('queueList').innerHTML = '';
-  
-  // 4. GARANTIA ANTI-TELA PRETA: Força a exibição visual direta via CSS
-  const authScreen = document.getElementById('authScreen');
-  const appWrap = document.getElementById('appWrap');
-  
-  if (authScreen) {
-    authScreen.classList.remove('hidden');
-    authScreen.style.setProperty('display', 'flex', 'important'); // Garante que ela apareça mesmo se outra classe travar
-  }
-  if (appWrap) {
-    appWrap.classList.remove('show');
-    appWrap.style.setProperty('display', 'none', 'important'); // Esconde o painel principal de vez
-  }
-
-  // 5. O PULO DO GATO: Se a sessão expirou no carregamento, um reload limpo resolve tudo de vez!
-  // Como o 'ct_token' já foi removido acima, o site vai carregar direto na tela de login oficial.
-  window.location.reload();
+  uploadAbortMap.clear();
+  document.getElementById('sbAccountList').innerHTML = '';
+  document.getElementById('sbQueue').style.display = 'none';
+  document.getElementById('queueList').innerHTML = '';
+  document.getElementById('authScreen').classList.remove('hidden');
+  document.getElementById('appWrap').classList.remove('show');
 }
 
 function enterApp() {
@@ -1063,32 +1040,12 @@ function selMode(mode){currentMode=mode;document.getElementById('mode-intel').cl
 function updateIntervalPreview(){const ppd=parseInt(document.getElementById('aa-ppd').value)||40;const st=document.getElementById('aa-st').value||'02:00';const et=document.getElementById('aa-et').value||'23:00';const[sh,sm]=st.split(':').map(Number);const[eh,em]=et.split(':').map(Number);const w=(eh*60+em)-(sh*60+sm);const iv=ppd>1?Math.floor(w/(ppd-1)):w;document.getElementById('intervalPreview').textContent='Intervalo: '+iv+'min · '+ppd+' posts/dia';}
 updateIntervalPreview();
 
-async function addAccount() {
-    const btn = document.getElementById('addAccBtn');
-    const originalText = btn.innerHTML;
-    
-    try {
-        btn.disabled = true;
-        btn.innerHTML = `<div class="spin"></div> Aguarde...`;
-
-        // Chama a rota que criamos no seu servidor do Railway
-        const response = await fetch('/api/auth/facebook');
-        const data = await response.json();
-
-        if (data.url) {
-            // Redireciona você automaticamente para a página de autorização da Meta
-            window.location.href = data.url;
-        } else {
-            showToast('Não foi possível iniciar a conexão com a Meta.', 'er');
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-        }
-    } catch (err) {
-        console.error('Erro na conexão:', err);
-        showToast('Erro de rede ao ligar ao servidor.', 'er');
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-    }
+async function addAccount(){
+  const token=document.getElementById('aa-token').value.trim();const label=document.getElementById('aa-label').value.trim();
+  if(!token){toast('Cole o Access Token','er');return;}const btn=document.getElementById('addAccBtn');btn.disabled=true;btn.innerHTML='<div class="spin"></div> Verificando...';
+  try{const r=await api('/api/accounts',{method:'POST',body:JSON.stringify({accessToken:token,label,postsPerDay:document.getElementById('aa-ppd').value,startTime:document.getElementById('aa-st').value,endTime:document.getElementById('aa-et').value,intervalMode:currentMode})});
+    if(r.success){toast('✅ @'+r.account.username+' adicionada!','ok');closeModal('modalAddAcc');document.getElementById('aa-token').value='';document.getElementById('aa-label').value='';loadAccounts();}else toast('Erro: '+r.error,'er');
+  }catch(e){toast('Erro: '+e.message,'er');}btn.disabled=false;btn.innerHTML='✅ Verificar e adicionar';
 }
 async function testAccount(id){toast('Testando...','in');const r=await api('/api/accounts/'+id+'/test',{method:'POST'});if(r.success)toast('✓ @'+r.username+' ok','ok');else toast('Erro: '+r.error,'er');}
 async function delAccount(id){if(!confirm('Remover esta conta?'))return;await api('/api/accounts/'+id,{method:'DELETE'});toast('Removida','wa');loadAccounts();}
