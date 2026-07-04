@@ -562,10 +562,6 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
 </div><!-- /app-wrap -->
 
 <script>
-// ═══ DEBUG: loga qualquer erro no console para facilitar diagnóstico (não altera o funcionamento) ═══
-window.addEventListener('error', e => console.error('[ERRO GLOBAL]', e.message, e.error));
-window.addEventListener('unhandledrejection', e => console.error('[PROMISE REJEITADA]', e.reason));
-
 // ═══ GLOBALS ═══
 let authToken = localStorage.getItem('ct_token') || '';
 let currentUser = null;
@@ -668,36 +664,14 @@ function doLogout() {
 }
 
 function enterApp() {
-  // 1. GARANTIA ANTI-TELA PRETA: força a troca visual ANTES de qualquer coisa que possa falhar.
-  const authScreen = document.getElementById('authScreen');
-  const appWrap = document.getElementById('appWrap');
-  if (authScreen) {
-    authScreen.classList.add('hidden');
-    authScreen.style.setProperty('display', 'none', 'important');
-  }
-  if (appWrap) {
-    appWrap.classList.add('show');
-    appWrap.style.setProperty('display', 'flex', 'important');
-  }
-
-  // 2. O resto (preencher dados do usuário e carregar o app) fica protegido:
-  // se algo aqui der erro, o painel continua visível em vez de sumir/ficar preto.
-  try {
-    if (!currentUser) throw new Error('currentUser vazio ao entrar no app');
-    document.getElementById('sbUserAvatar').textContent = (currentUser.name || 'U')[0].toUpperCase();
-    document.getElementById('sbUserName').textContent = currentUser.name || '';
-    document.getElementById('sbUserRole').textContent = currentUser.role === 'admin' ? '🔒 Administrador' : 'Usuário';
-    document.getElementById('adminNav').style.display = currentUser.role === 'admin' ? 'block' : 'none';
-    document.getElementById('n-settings').style.display = currentUser.role === 'admin' ? 'flex' : 'none';
-  } catch (e) {
-    console.error('[enterApp] falha ao preencher dados do usuário:', e);
-  }
-
-  try {
-    appInit();
-  } catch (e) {
-    console.error('[enterApp] falha ao iniciar o app (appInit):', e);
-  }
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('appWrap').classList.add('show');
+  document.getElementById('sbUserAvatar').textContent = (currentUser.name || 'U')[0].toUpperCase();
+  document.getElementById('sbUserName').textContent = currentUser.name;
+  document.getElementById('sbUserRole').textContent = currentUser.role === 'admin' ? '🔒 Administrador' : 'Usuário';
+  document.getElementById('adminNav').style.display = currentUser.role === 'admin' ? 'block' : 'none';
+  document.getElementById('n-settings').style.display = currentUser.role === 'admin' ? 'flex' : 'none';
+  appInit();
 }
 
 // Enter on password fields
@@ -1011,6 +985,10 @@ async function runUploadPresign(qid,files,params,acc){
     updateQueue(qid,total,total,'Erro ao agendar: '+e.message,'error');
     toast('⚠️ '+e.message,'er');
   }
+  const msg=errs>0?`${done} agendados, ${errs} com erro`:`${done} vídeo(s) agendados!`;
+  updateQueue(qid,total,total,msg,errs>0&&done===0?'error':'done');
+  toast(errs===0?'✅ @'+(acc.username||acc.label)+': '+done+' agendados!'
+    :'⚠️ @'+(acc.username||acc.label)+': '+done+' ok, '+errs+' erros',errs===0?'ok':'wa');
   if(document.getElementById('panel-videos').classList.contains('act'))loadVideos();
   if(document.getElementById('panel-dash').classList.contains('act'))loadDash();
   setTimeout(()=>removeFromQueue(qid),60000);
@@ -1080,7 +1058,7 @@ async function loadAccounts(){
     return `<div class="acc-card"><div class="acc-card-top"><div class="acc-card-left"><div class="acc-avatar">📷</div><div><div class="acc-username">@${a.username||a.label}</div><span class="acc-badge intel">⚡ ${a.intervalMode||'inteligente'}</span><div class="acc-status" style="margin-top:2px">● active</div></div></div><div class="acc-card-actions"><button title="Testar" onclick="testAccount('${a.id}')">🔗</button><button title="Editar" onclick="openEditAccount('${a.id}')">✏️</button><button class="del" title="Remover" onclick="delAccount('${a.id}')">🗑</button></div></div><div class="acc-info-row"><span class="acc-info-lbl">Posts:</span><span class="acc-info-val">${c.todos||0}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Janela:</span><span class="acc-info-val">${a.startTime}-${a.endTime}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Vídeos/dia:</span><span class="acc-info-val">${a.postsPerDay}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Intervalo:</span><span class="acc-info-val">${a.intervalMinutes}min</span></div></div>`;
   }).join('');
 }
-function updateSbAccounts(){document.getElementById('sbAccsList').innerHTML=(Array.isArray(accounts)?accounts:[]).map(a=>`<div class="sb-acc-item" onclick="nav('accounts')"><div class="sb-acc-av">${(a.username||'?')[0].toUpperCase()}</div><div><div class="sb-acc-name">@${a.username||a.label}</div><div class="sb-acc-handle">${a.postsPerDay}×/dia</div></div></div>`).join('');}
+function updateSbAccounts(){document.getElementById('sbAccsList').innerHTML=accounts.map(a=>`<div class="sb-acc-item" onclick="nav('accounts')"><div class="sb-acc-av">${(a.username||'?')[0].toUpperCase()}</div><div><div class="sb-acc-name">@${a.username||a.label}</div><div class="sb-acc-handle">${a.postsPerDay}×/dia</div></div></div>`).join('');}
 function selMode(mode){currentMode=mode;document.getElementById('mode-intel').classList.toggle('sel',mode==='inteligente');document.getElementById('mode-manual').classList.toggle('sel',mode==='manual');updateIntervalPreview();}
 function updateIntervalPreview(){const ppd=parseInt(document.getElementById('aa-ppd').value)||40;const st=document.getElementById('aa-st').value||'02:00';const et=document.getElementById('aa-et').value||'23:00';const[sh,sm]=st.split(':').map(Number);const[eh,em]=et.split(':').map(Number);const w=(eh*60+em)-(sh*60+sm);const iv=ppd>1?Math.floor(w/(ppd-1)):w;document.getElementById('intervalPreview').textContent='Intervalo: '+iv+'min · '+ppd+' posts/dia';}
 updateIntervalPreview();
@@ -1101,13 +1079,13 @@ async function addAccount() {
             // Redireciona você automaticamente para a página de autorização da Meta
             window.location.href = data.url;
         } else {
-            toast('Não foi possível iniciar a conexão com a Meta.', 'er');
+            showToast('Não foi possível iniciar a conexão com a Meta.', 'er');
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
     } catch (err) {
         console.error('Erro na conexão:', err);
-        toast('Erro de rede ao ligar ao servidor.', 'er');
+        showToast('Erro de rede ao ligar ao servidor.', 'er');
         btn.disabled = false;
         btn.innerHTML = originalText;
     }
@@ -1500,14 +1478,10 @@ async function appInit(){
   accounts=[];categories=[];uploadQueue=[];
   updateSbAccounts();
   renderQueue();
-  try {
-    const data = await api('/api/accounts');
-    accounts = Array.isArray(data) ? data : [];
-    updateSbAccounts();
-  } catch (e) { console.error('[appInit] erro ao carregar /api/accounts:', e); }
-  try { await loadCategories(); } catch (e) { console.error('[appInit] erro ao carregar categorias:', e); }
-  try { await loadCaptionPresets(); } catch (e) { console.error('[appInit] erro ao carregar legendas:', e); }
-  try { loadDash(); } catch (e) { console.error('[appInit] erro ao carregar dashboard:', e); }
+  const data=await api('/api/accounts');accounts=data;updateSbAccounts();
+  await loadCategories();
+  await loadCaptionPresets();
+  loadDash();
 }
 setInterval(()=>{if(!currentUser)return;const a=document.querySelector('.panel.act')?.id;if(a==='panel-dash')loadDash();if(a==='panel-videos')loadVideos();},30000);
 </script>
