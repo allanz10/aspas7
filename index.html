@@ -264,16 +264,22 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
 
 /* DASHBOARD */
 .dash-acc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:4px}
-.dash-acc-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:15px}
-.dash-acc-card:hover{border-color:var(--b2)}
-.dash-acc-header{display:flex;align-items:center;gap:9px;margin-bottom:12px}
-.dash-acc-av{width:32px;height:32px;border-radius:50%;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
-.dash-acc-name{font-size:13px;font-weight:500;letter-spacing:-.2px}
-.dash-acc-sub{font-size:10px;color:var(--tx3)}
+.dash-acc-card{background:var(--s1);border:1px solid var(--b1);border-left:3px solid var(--acc-state,var(--ac));border-radius:var(--r);padding:15px;transition:box-shadow .15s,border-color .15s}
+.dash-acc-card:hover{border-color:var(--b2);box-shadow:0 4px 18px -6px var(--acc-state-sh,rgba(62,207,142,.25))}
+.dash-acc-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.dash-acc-av-ring{width:34px;height:34px;border-radius:50%;background:conic-gradient(from 210deg,#f59e0b,#ec4899,#a855f7,#6366f1,#f59e0b);display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:2px}
+.dash-acc-av{width:100%;height:100%;border-radius:50%;background:var(--s1);border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-size:13px}
+.dash-acc-name{font-size:13px;font-weight:500;letter-spacing:-.2px;display:flex;align-items:center;gap:6px}
+.dash-acc-sub{font-size:10px;color:var(--tx3);margin-top:1px}
+.dash-status-pill{font-size:9px;font-weight:600;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:4px;flex-shrink:0}
+.dash-status-pill.on{background:rgba(62,207,142,.14);color:var(--ac)}
+.dash-status-pill.off{background:rgba(255,255,255,.06);color:var(--tx3)}
+.dash-status-pill.warn{background:rgba(255,85,85,.14);color:var(--rd)}
+.dash-status-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
 .dash-acc-bars{display:flex;flex-direction:column;gap:5px}
 .dash-bar-row{display:flex;align-items:center;gap:7px}
 .dash-bar-lbl{font-size:10px;color:var(--tx2);width:65px;flex-shrink:0}
-.dash-bar-track{flex:1;height:3px;background:var(--bg);border-radius:100px;overflow:hidden}
+.dash-bar-track{flex:1;height:4px;background:var(--bg);border-radius:100px;overflow:hidden}
 .dash-bar-fill{height:100%;border-radius:100px;transition:width .4s}
 .dash-bar-val{font-size:10px;font-weight:500;width:26px;text-align:right;flex-shrink:0}
 .dash-acc-next{margin-top:9px;padding-top:8px;border-top:1px solid var(--b1);font-size:10px;color:var(--tx2)}
@@ -1007,13 +1013,17 @@ async function loadDash(){
     // Barras relativas ao maior valor entre os 3 (nunca > 100%, nunca dividir por 0)
     const barMax=Math.max(post,pend,err,1);
     const pPost=Math.round(post/barMax*100),pPend=Math.round(pend/barMax*100),pErr=Math.round(err/barMax*100);
-    return `<div class="dash-acc-card">
-      <div class="dash-acc-header"><div class="dash-acc-av">📷</div><div style="flex:1"><div class="dash-acc-name">@${a.username||a.label} ${getCatTag(a.categoryId)}</div><div class="dash-acc-sub">${a.postsPerDay}×/dia · ${a.startTime}–${a.endTime}</div></div><button class="icon-btn" title="Reagendar pendentes com intervalo correto" onclick="rescheduleAcc('${a.id}','${a.username||a.label}')">🔄</button></div>
+    // Estado do card: erro > pendente > ativo > pausado — define cor da borda e do selo
+    let stateColor='var(--ac)', stateSh='rgba(62,207,142,.25)', pill='<span class="dash-status-pill on"><span class="dash-status-dot"></span>Ativo</span>';
+    if(err>0){stateColor='var(--rd)';stateSh='rgba(255,85,85,.25)';pill='<span class="dash-status-pill warn"><span class="dash-status-dot"></span>Com erro</span>';}
+    else if(!a.nextScheduled && pend===0){stateColor='var(--tx3)';stateSh='rgba(255,255,255,.06)';pill='<span class="dash-status-pill off"><span class="dash-status-dot"></span>Sem fila</span>';}
+    return `<div class="dash-acc-card" style="--acc-state:${stateColor};--acc-state-sh:${stateSh}">
+      <div class="dash-acc-header"><div class="dash-acc-av-ring"><div class="dash-acc-av">📷</div></div><div style="flex:1;min-width:0"><div class="dash-acc-name">@${a.username||a.label} ${getCatTag(a.categoryId)}</div><div class="dash-acc-sub">${a.postsPerDay}×/dia · ${a.startTime}–${a.endTime}</div></div>${pill}<button class="icon-btn" title="Reagendar pendentes com intervalo correto" onclick="rescheduleAcc('${a.id}','${a.username||a.label}')">🔄</button></div>
       <div class="dash-acc-bars">
-        <div class="dash-bar-row"><span class="dash-bar-lbl">✅ Postados</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pPost}%;background:var(--gr)"></div></div><span class="dash-bar-val c-g">${post}</span></div>
-        <div class="dash-bar-row"><span class="dash-bar-lbl">⏰ Pendentes</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pPend}%;background:var(--ye)"></div></div><span class="dash-bar-val c-y">${pend}</span></div>
-        <div class="dash-bar-row"><span class="dash-bar-lbl">❌ Erros</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pErr}%;background:var(--rd)"></div></div><span class="dash-bar-val c-r">${err}</span></div>
-        <div class="dash-bar-row"><span class="dash-bar-lbl">📦 Total</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${tot>0?100:0}%;background:var(--p)"></div></div><span class="dash-bar-val c-p">${tot}</span></div>
+        <div class="dash-bar-row"><span class="dash-bar-lbl">✅ Postados</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pPost}%;background:linear-gradient(90deg,#0ea86f,var(--ac))"></div></div><span class="dash-bar-val c-g">${post}</span></div>
+        <div class="dash-bar-row"><span class="dash-bar-lbl">⏰ Pendentes</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pPend}%;background:linear-gradient(90deg,#d6820f,var(--ye))"></div></div><span class="dash-bar-val c-y">${pend}</span></div>
+        <div class="dash-bar-row"><span class="dash-bar-lbl">❌ Erros</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pErr}%;background:linear-gradient(90deg,#c22,var(--rd))"></div></div><span class="dash-bar-val c-r">${err}</span></div>
+        <div class="dash-bar-row"><span class="dash-bar-lbl">📦 Total</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${tot>0?100:0}%;background:linear-gradient(90deg,#6366f1,#ec4899)"></div></div><span class="dash-bar-val c-p">${tot}</span></div>
       </div>
       <div class="dash-acc-times">
         <div class="dash-acc-time-row"><span class="dash-time-lbl">⏰ Próximo</span><span class="dash-time-val">${a.nextScheduled?fmtDT(a.nextScheduled):'—'}</span></div>
