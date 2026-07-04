@@ -159,10 +159,10 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .tab{padding:5px 11px;border-radius:5px;border:none;background:none;color:var(--tx2);font-size:12px;font-weight:400;cursor:pointer;transition:all .1s;white-space:nowrap;font-family:'Geist',sans-serif}
 .tab.act{background:var(--s3);color:var(--tx);font-weight:500}
 .tab:hover:not(.act){color:var(--tx1)}
-.video-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--s1);border:1px solid var(--b1);border-radius:8px;margin-bottom:5px;gap:10px;transition:border-color .1s}
-.video-item:hover{border-color:var(--b2)}
+.video-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--s1);border:1px solid var(--b1);border-left:3px solid var(--vi-state,var(--b1));border-radius:8px;margin-bottom:5px;gap:10px;transition:border-color .12s,box-shadow .12s}
+.video-item:hover{border-color:var(--b2);box-shadow:0 3px 14px -6px var(--vi-state-sh,rgba(0,0,0,.3))}
 .video-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
-.video-icon{font-size:14px;flex-shrink:0;opacity:.6}
+.video-icon{width:26px;height:26px;border-radius:8px;font-size:13px;flex-shrink:0;background:var(--ic-bg,var(--s3));display:inline-flex;align-items:center;justify-content:center}
 .video-name{font-size:12px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:1px}
 .video-account{font-size:10px;color:var(--tx3)}
 .video-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
@@ -217,7 +217,7 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
 .mode-opt p{font-size:10px;color:var(--tx2)}
 
 /* BADGES */
-.badge{display:inline-flex;align-items:center;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:100px;font-size:10px;font-weight:600;letter-spacing:.1px}
 .b-pend{background:var(--ye2);color:var(--ye)}
 .b-proc{background:var(--bl2);color:var(--bl)}
 .b-post{background:var(--ac2);color:var(--ac)}
@@ -225,8 +225,8 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
 .b-canc{background:var(--s3);color:var(--tx3)}
 
 /* PROGRESS */
-.video-progress{margin-top:5px;height:2px;background:var(--b1);border-radius:100px;overflow:hidden}
-.video-progress-fill{height:100%;border-radius:100px;background:var(--bl);transition:width .5s;animation:progpulse 1.5s ease-in-out infinite}
+.video-progress{margin-top:5px;height:3px;background:var(--b1);border-radius:100px;overflow:hidden}
+.video-progress-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--bl),#a855f7);transition:width .5s;animation:progpulse 1.5s ease-in-out infinite}
 @keyframes progpulse{0%,100%{opacity:1}50%{opacity:.4}}
 .video-proc-msg{font-size:10px;color:var(--bl);margin-top:2px}
 .post-progress{margin-top:5px;height:2px;background:var(--b1);border-radius:100px;overflow:hidden}
@@ -728,7 +728,7 @@ function renderQueue(){
     if(isDone||isErr||isCancelled){pct=100;}
     else if(q.totalBytes>0){pct=Math.min(99,Math.round(q.bytesLoaded/q.totalBytes*100));}
     else if(q.total>0){pct=Math.round(q.done/q.total*100);}
-    const fill=isErr?'var(--rd)':isCancelled?'var(--tx3)':isDone?(hasErrs?'var(--ye)':'var(--gr)'):'linear-gradient(90deg,var(--p),var(--p2))';
+    const fill=isErr?'linear-gradient(90deg,#c22,var(--rd))':isCancelled?'var(--tx3)':isDone?(hasErrs?'linear-gradient(90deg,#d6820f,var(--ye))':'linear-gradient(90deg,#0ea86f,var(--ac))'):'linear-gradient(90deg,#6366f1,#a855f7,#ec4899)';
     const pctLabel=isDone?(hasErrs?'⚠ '+q.errs+' erro(s)':'✓'):isErr?'✗':isCancelled?'—':(pct+'%');
     // Linha de detalhe: arquivo atual + velocidade + arquivos concluídos
     let detailLine='';
@@ -1038,7 +1038,7 @@ async function loadDash(){
   // Lista de próximos
   const next=d.upcoming||[];const el=document.getElementById('dashNextList');
   if(!next.length){el.innerHTML='<div class="empty"><div class="empty-icon">📅</div><p>Nenhum post agendado</p></div>';return;}
-  el.innerHTML=next.map(v=>`<div class="video-item"><div class="video-left"><span class="video-icon">⏰</span><div><div class="video-name">${v.originalName}</div><div class="video-account">@${v.username}</div></div></div><div class="video-right"><div><span class="badge b-pend">pendente</span><div class="video-date">${fmtDT(v.scheduledFor)}</div></div></div></div>`).join('');
+  el.innerHTML=next.map(v=>`<div class="video-item" style="--vi-state:var(--ye);--vi-state-sh:rgba(245,166,35,.25)"><div class="video-left"><span class="video-icon" style="--ic-bg:var(--ye2)">⏰</span><div><div class="video-name">${v.originalName}</div><div class="video-account">@${v.username}</div></div></div><div class="video-right"><div><span class="badge b-pend">pendente</span><div class="video-date">${fmtDT(v.scheduledFor)}</div></div></div></div>`).join('');
 }
 async function loadAccounts(){
   const [data, statsArr] = await Promise.all([api('/api/accounts'), api('/api/accounts/stats')]);
@@ -1089,8 +1089,10 @@ async function loadVideos(){
   document.getElementById('pendCount').textContent=counts.pendente||0;const el=document.getElementById('videosList');
   if(!videos.length){el.innerHTML='<div class="empty"><div class="empty-icon">🎬</div><p>Nenhum vídeo</p></div>';return;}
   const ic={pendente:'⏰',processando:'🔄',postado:'✅',erro:'❌',cancelado:'🚫'};const sc={pendente:'b-pend',processando:'b-proc',postado:'b-post',erro:'b-erro',cancelado:'b-canc'};
+  const stCol={pendente:['var(--ye)','rgba(245,166,35,.25)','var(--ye2)'],processando:['var(--bl)','rgba(91,156,246,.25)','var(--bl2)'],postado:['var(--ac)','rgba(62,207,142,.25)','var(--ac2)'],erro:['var(--rd)','rgba(255,85,85,.25)','var(--rd2)'],cancelado:['var(--tx3)','rgba(255,255,255,.06)','var(--s3)']};
   el.innerHTML=videos.map(v=>{
     const isProc=v.status==='processando';
+    const [borderC,shadowC,chipBg]=stCol[v.status]||stCol.pendente;
     // Calcular % a partir da mensagem de progresso "... (N/36)"
     let procPct=5,procMsg=v.errorMsg||'Processando...';
     if(isProc){
@@ -1100,7 +1102,7 @@ async function loadVideos(){
     const infoLine=isProc
       ? `<div class="video-proc-msg">⟳ ${procMsg.slice(0,80)}</div><div class="video-progress"><div class="video-progress-fill" style="width:${procPct}%"></div></div>`
       : (v.errorMsg?`<div style="font-size:10px;color:var(--rd);margin-top:1px">⚠ ${v.errorMsg.slice(0,120)}</div>`:'');
-    return `<div class="video-item" id="vi-${v.id}"><div class="video-left"><span class="video-icon">${ic[v.status]||'⏰'}</span><div style="min-width:0"><div class="video-name">${v.originalName}</div><div class="video-account">@${v.username}${v.cycle>1?' · ciclo '+v.cycle:''}</div>${infoLine}</div></div><div class="video-right"><div style="text-align:right"><span class="badge ${sc[v.status]}">${v.status}</span><div class="video-date">${v.status==='postado'?'✓ '+fmtDT(v.postedAt):fmtDT(v.scheduledFor)}</div></div><div class="video-actions">${v.b2Url?'<button class="icon-btn" title="Copiar URL" onclick="copyVideoUrl(\''+v.b2Url+'\',this)">🔗</button>':''}${v.status==='erro'?'<button class="icon-btn" onclick="retryVideo(\''+v.id+'\')">↺</button>':''}${v.status==='pendente'?'<button class="icon-btn" onclick="pubNow(\''+v.id+'\')">▶</button>':''}<button class="icon-btn danger" onclick="delVideo(\''+v.id+'\')">✕</button></div></div></div>`;
+    return `<div class="video-item" id="vi-${v.id}" style="--vi-state:${borderC};--vi-state-sh:${shadowC}"><div class="video-left"><span class="video-icon" style="--ic-bg:${chipBg}">${ic[v.status]||'⏰'}</span><div style="min-width:0"><div class="video-name">${v.originalName}</div><div class="video-account">@${v.username}${v.cycle>1?' · ciclo '+v.cycle:''}</div>${infoLine}</div></div><div class="video-right"><div style="text-align:right"><span class="badge ${sc[v.status]}">${v.status}</span><div class="video-date">${v.status==='postado'?'✓ '+fmtDT(v.postedAt):fmtDT(v.scheduledFor)}</div></div><div class="video-actions">${v.b2Url?'<button class="icon-btn" title="Copiar URL" onclick="copyVideoUrl(\''+v.b2Url+'\',this)">🔗</button>':''}${v.status==='erro'?'<button class="icon-btn" onclick="retryVideo(\''+v.id+'\')">↺</button>':''}${v.status==='pendente'?'<button class="icon-btn" onclick="pubNow(\''+v.id+'\')">▶</button>':''}<button class="icon-btn danger" onclick="delVideo(\''+v.id+'\')">✕</button></div></div></div>`;
   }).join('');
   // Iniciar polling para vídeos processando
   startProcessingPoll(videos.filter(v=>v.status==='processando').map(v=>v.id));
