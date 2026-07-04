@@ -127,9 +127,11 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 /* STATS */
 .stat-grid{display:grid;gap:8px;margin-bottom:10px}
 .stat-grid.c4{grid-template-columns:repeat(4,1fr)}.stat-grid.c3{grid-template-columns:repeat(3,1fr)}
-.stat-box{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:16px 18px}
+.stat-box{position:relative;background:var(--s1);border:1px solid var(--b1);border-top:2px solid var(--st-c,var(--b1));border-radius:var(--r);padding:16px 18px;transition:transform .15s,box-shadow .15s,border-color .15s;overflow:hidden}
+.stat-box:hover{transform:translateY(-2px);border-color:var(--b2);box-shadow:0 8px 22px -10px var(--st-sh,rgba(0,0,0,.5))}
 .stat-num{font-size:24px;font-weight:600;line-height:1;margin-bottom:3px;letter-spacing:-.5px}
 .stat-lbl{font-size:10px;color:var(--tx2)}
+.stat-icon{position:absolute;top:13px;right:13px;width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;background:var(--st-bg,var(--s3))}
 .c-p{color:var(--tx)}.c-g{color:var(--ac)}.c-y{color:var(--ye)}.c-r{color:var(--rd)}.c-b{color:var(--bl)}
 
 /* ACCOUNTS */
@@ -484,15 +486,15 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
   <div class="page-content">
     <!-- DASHBOARD --><div class="panel act" id="panel-dash">
       <div class="stat-grid c4">
-        <div class="stat-box"><div class="stat-num c-p" id="ds-total">0</div><div class="stat-lbl">Total de vídeos</div></div>
-        <div class="stat-box"><div class="stat-num c-g" id="ds-posted">0</div><div class="stat-lbl">Postados</div></div>
-        <div class="stat-box"><div class="stat-num c-y" id="ds-pending">0</div><div class="stat-lbl">Pendentes</div></div>
-        <div class="stat-box"><div class="stat-num c-r" id="ds-error">0</div><div class="stat-lbl">Erros</div></div>
+        <div class="stat-box" style="--st-c:#6366f1;--st-sh:rgba(99,102,241,.3)"><span class="stat-icon" style="--st-bg:rgba(99,102,241,.16)">📦</span><div class="stat-num c-p" id="ds-total">0</div><div class="stat-lbl">Total de vídeos</div></div>
+        <div class="stat-box" style="--st-c:var(--ac);--st-sh:rgba(62,207,142,.3)"><span class="stat-icon" style="--st-bg:var(--ac2)">✅</span><div class="stat-num c-g" id="ds-posted">0</div><div class="stat-lbl">Postados</div></div>
+        <div class="stat-box" style="--st-c:var(--ye);--st-sh:rgba(245,166,35,.3)"><span class="stat-icon" style="--st-bg:var(--ye2)">⏰</span><div class="stat-num c-y" id="ds-pending">0</div><div class="stat-lbl">Pendentes</div></div>
+        <div class="stat-box" style="--st-c:var(--rd);--st-sh:rgba(255,85,85,.3)"><span class="stat-icon" style="--st-bg:var(--rd2)">❌</span><div class="stat-num c-r" id="ds-error">0</div><div class="stat-lbl">Erros</div></div>
       </div>
       <div class="stat-grid c3">
-        <div class="stat-box"><div class="stat-num c-p" id="ds-accs">0</div><div class="stat-lbl">Contas ativas</div></div>
-        <div class="stat-box"><div class="stat-num c-b" id="ds-proc">0</div><div class="stat-lbl">Jobs ativos</div></div>
-        <div class="stat-box"><div class="stat-num c-g" id="ds-today">0</div><div class="stat-lbl">Postados hoje</div></div>
+        <div class="stat-box" style="--st-c:#a855f7;--st-sh:rgba(168,85,247,.3)"><span class="stat-icon" style="--st-bg:rgba(168,85,247,.16)">📱</span><div class="stat-num c-p" id="ds-accs">0</div><div class="stat-lbl">Contas ativas</div></div>
+        <div class="stat-box" style="--st-c:var(--bl);--st-sh:rgba(91,156,246,.3)"><span class="stat-icon" style="--st-bg:var(--bl2)">🔄</span><div class="stat-num c-b" id="ds-proc">0</div><div class="stat-lbl">Jobs ativos</div></div>
+        <div class="stat-box" style="--st-c:#ec4899;--st-sh:rgba(236,72,153,.3)"><span class="stat-icon" style="--st-bg:rgba(236,72,153,.16)">🎬</span><div class="stat-num c-g" id="ds-today">0</div><div class="stat-lbl">Postados hoje</div></div>
       </div>
       <div class="card" style="margin-bottom:14px">
         <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
@@ -1145,10 +1147,10 @@ async function loadAdminUsers(){
   allAdminUsers = overview;
   document.getElementById('adminUserCount').textContent = overview.length + ' usuário' + (overview.length!==1?'s':'');
   document.getElementById('adminStats').innerHTML = `
-    <div class="stat-box"><div class="stat-num c-p">${stats.total||0}</div><div class="stat-lbl">Total usuários</div></div>
-    <div class="stat-box"><div class="stat-num c-g">${stats.active||0}</div><div class="stat-lbl">Ativos</div></div>
-    <div class="stat-box"><div class="stat-num c-y">${stats.admins||0}</div><div class="stat-lbl">Admins</div></div>
-    <div class="stat-box"><div class="stat-num c-b">${stats.todayLogins||0}</div><div class="stat-lbl">Logins hoje</div></div>`;
+    <div class="stat-box" style="--st-c:#6366f1;--st-sh:rgba(99,102,241,.3)"><span class="stat-icon" style="--st-bg:rgba(99,102,241,.16)">👥</span><div class="stat-num c-p">${stats.total||0}</div><div class="stat-lbl">Total usuários</div></div>
+    <div class="stat-box" style="--st-c:var(--ac);--st-sh:rgba(62,207,142,.3)"><span class="stat-icon" style="--st-bg:var(--ac2)">✅</span><div class="stat-num c-g">${stats.active||0}</div><div class="stat-lbl">Ativos</div></div>
+    <div class="stat-box" style="--st-c:var(--c-au);--st-sh:rgba(251,191,36,.3)"><span class="stat-icon" style="--st-bg:rgba(251,191,36,.16)">🔒</span><div class="stat-num c-y">${stats.admins||0}</div><div class="stat-lbl">Admins</div></div>
+    <div class="stat-box" style="--st-c:var(--bl);--st-sh:rgba(91,156,246,.3)"><span class="stat-icon" style="--st-bg:var(--bl2)">🔑</span><div class="stat-num c-b">${stats.todayLogins||0}</div><div class="stat-lbl">Logins hoje</div></div>`;
   renderAdminUsers();
 }
 function renderAdminUsers(){
