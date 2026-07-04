@@ -46,11 +46,11 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .auth-field{margin-bottom:12px}
 .auth-field label{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px;letter-spacing:.02em}
 .auth-field input{width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s}
-.auth-field input:focus{border-color:var(--b2)}
+.auth-field input:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.16)}
 .auth-error{padding:9px 12px;border-radius:8px;background:var(--rd2);border:1px solid rgba(255,85,85,.15);color:var(--rd);font-size:12px;margin-bottom:12px;display:none}
 .auth-error.show{display:block}
-.auth-btn{width:100%;padding:11px;background:var(--tx);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Geist',sans-serif;cursor:pointer;transition:opacity .15s;letter-spacing:-.1px}
-.auth-btn:hover{opacity:.85}
+.auth-btn{width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Geist',sans-serif;cursor:pointer;transition:all .15s;letter-spacing:-.1px;box-shadow:0 4px 16px -4px rgba(139,92,246,.5)}
+.auth-btn:hover{filter:brightness(1.08);box-shadow:0 6px 20px -4px rgba(139,92,246,.6);transform:translateY(-1px)}
 .auth-btn:disabled{opacity:.4;cursor:wait}
 .auth-switch{text-align:center;margin-top:16px;font-size:12px;color:var(--tx2)}
 .auth-switch a{color:var(--tx1);cursor:pointer;font-weight:500}
@@ -173,19 +173,21 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .icon-btn{background:none;border:1px solid var(--b1);color:var(--tx3);cursor:pointer;width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;transition:all .1s;font-family:'Geist',sans-serif}
 .icon-btn:hover{border-color:var(--b2);color:var(--tx1);background:var(--s2)}
 .icon-btn.danger:hover{background:var(--rd2);border-color:rgba(255,85,85,.2);color:var(--rd)}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:7px;border:none;font-family:'Geist',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all .1s;white-space:nowrap;letter-spacing:-.1px}
-.btn-p{background:var(--tx);color:#000}.btn-p:hover{background:var(--p2)}
-.btn-g{background:transparent;color:var(--tx1);border:1px solid var(--b1)}.btn-g:hover{background:var(--s2);border-color:var(--b2)}
-.btn-d{background:var(--rd2);color:var(--rd);border:1px solid rgba(255,85,85,.15)}.btn-d:hover{background:rgba(255,85,85,.18)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:7px;border:none;font-family:'Geist',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;letter-spacing:-.1px}
+.btn-p{background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);color:#fff;box-shadow:0 2px 10px -2px rgba(139,92,246,.5)}
+.btn-p:hover{filter:brightness(1.08);box-shadow:0 4px 16px -2px rgba(139,92,246,.65);transform:translateY(-1px)}
+.btn-p:active{transform:translateY(0)}
+.btn-g{background:transparent;color:var(--tx1);border:1px solid var(--b1)}.btn-g:hover{background:var(--s2);border-color:#8b5cf6;color:var(--tx)}
+.btn-d{background:linear-gradient(135deg,var(--rd2),rgba(255,85,85,.2));color:var(--rd);border:1px solid rgba(255,85,85,.25)}.btn-d:hover{background:rgba(255,85,85,.22);box-shadow:0 2px 10px -3px rgba(255,85,85,.4)}
 .btn-sm{padding:5px 10px;font-size:11px}
-.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important;box-shadow:none!important}
 .btn-row{display:flex;gap:7px;justify-content:flex-end;margin-top:14px}
 
 /* FORMS */
 .field{margin-bottom:12px}.field:last-child{margin-bottom:0}
 label{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:4px}
-input,textarea,select{width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:8px 11px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s}
-input:focus,textarea:focus,select:focus{border-color:var(--b2)}
+input,textarea,select{width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:8px 11px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,textarea:focus,select:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.16)}
 select option{background:var(--s2)}
 textarea{resize:vertical;min-height:60px;line-height:1.5}
 .r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -339,7 +341,7 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
     <div id="authLogin">
       <div class="auth-logo">
         <div class="auth-logo-icon">✂️</div>
-        <h1>MeuSacoTools</h1>
+        <h1>AspaTools</h1>
         <p>Entre na sua conta</p>
       </div>
       <div class="auth-error" id="loginError"></div>
@@ -353,7 +355,7 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
       <div class="auth-logo">
         <div class="auth-logo-icon">✂️</div>
         <h1>Criar Conta</h1>
-        <p>Comece a usar o MeuSacoTools</p>
+        <p>Comece a usar o AspaTools</p>
       </div>
       <div class="auth-error" id="signupError"></div>
       <div class="auth-field"><label>Nome</label><input type="text" id="signupName" placeholder="Seu nome"></div>
@@ -432,7 +434,7 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
 <!-- LAYOUT -->
 <aside class="sidebar">
   <div class="sb-header">
-    <div class="sb-logo"><div class="sb-logo-icon">✂️</div><div class="sb-logo-text">MeuSacoTools</div></div>
+    <div class="sb-logo"><div class="sb-logo-icon">✂️</div><div class="sb-logo-text">AspaTools</div></div>
     <div class="sb-sub">Automação de postagens · v4.2</div>
   </div>
   <div class="sb-section-title">Principal</div>
