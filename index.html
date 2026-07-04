@@ -29,6 +29,8 @@
   --tx:#f0f0f0;--tx1:#aaa;--tx2:#666;--tx3:#333;
   --sidebar:232px;
   --r:10px;
+  --c-dash:#6366f1;--c-acc:#a855f7;--c-vid:#ec4899;--c-cap:#f59e0b;--c-set:#10b981;
+  --c-au:#fbbf24;--c-al:#38bdf8;
 }
 
 body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-serif;display:flex;min-height:100vh;font-size:13px;-webkit-font-smoothing:antialiased}
@@ -62,16 +64,18 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .sidebar{width:var(--sidebar);background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto}
 .sb-header{padding:18px 14px 14px;border-bottom:1px solid var(--b1)}
 .sb-logo{display:flex;align-items:center;gap:9px;margin-bottom:1px}
-.sb-logo-icon{width:28px;height:28px;background:var(--s3);border:1px solid var(--b1);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.sb-logo-icon{width:28px;height:28px;background:linear-gradient(135deg,#6366f1,#ec4899);border:1px solid var(--b1);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;box-shadow:0 2px 8px rgba(99,102,241,.35)}
 .sb-logo-text{font-size:13px;font-weight:600;letter-spacing:-.3px}
 .sb-sub{font-size:10px;color:var(--tx3);margin-top:2px}
 .sb-nav{padding:8px 6px}
-.nav-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;color:var(--tx2);font-size:12px;font-weight:400;transition:all .1s;margin-bottom:1px;border:none;background:none;width:100%;text-align:left}
+.nav-item{display:flex;align-items:center;gap:9px;padding:7px 10px 7px 8px;border-radius:7px;cursor:pointer;color:var(--tx2);font-size:12px;font-weight:400;transition:all .12s;margin-bottom:2px;border:none;border-left:2px solid transparent;background:none;width:100%;text-align:left}
 .nav-item:hover{background:var(--p3);color:var(--tx1)}
-.nav-item.act{background:var(--p3);color:var(--tx);font-weight:500}
-.nav-item .icon{width:16px;text-align:center;font-size:12px;flex-shrink:0;opacity:.7}
+.nav-item.act{background:var(--icbg,var(--p3));color:var(--tx);font-weight:600;border-left-color:var(--ic-solid,var(--ac))}
+.nav-item .icon{width:20px;height:20px;text-align:center;font-size:11px;flex-shrink:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--ic,rgba(255,255,255,.06));opacity:.85;transition:transform .12s}
 .nav-item.act .icon{opacity:1}
+.nav-item:hover .icon{transform:scale(1.08)}
 .sb-section-title{font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:var(--tx3);padding:14px 10px 5px;font-weight:600}
+.sb-section-title.gold{color:var(--c-au)}
 
 /* Queue */
 .sb-queue{border-top:1px solid var(--b1);padding:8px 6px}
@@ -425,19 +429,20 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
     <div class="sb-logo"><div class="sb-logo-icon">✂️</div><div class="sb-logo-text">MeuSacoTools</div></div>
     <div class="sb-sub">Automação de postagens · v4.2</div>
   </div>
+  <div class="sb-section-title">Principal</div>
   <nav class="sb-nav">
-    <button class="nav-item act" id="n-dash" onclick="nav('dash')"><span class="icon">📊</span> Dashboard</button>
-    <button class="nav-item" id="n-accounts" onclick="nav('accounts')"><span class="icon">📱</span> Configurar contas</button>
-    <button class="nav-item" id="n-videos" onclick="nav('videos')"><span class="icon">🎬</span> Postar vídeos</button>
-    <button class="nav-item" id="n-captions" onclick="nav('captions')"><span class="icon">💬</span> Legendas</button>
-    <button class="nav-item" id="n-settings" onclick="nav('settings')" style="display:none"><span class="icon">⚙️</span> Configurações</button>
+    <button class="nav-item act" id="n-dash" onclick="nav('dash')" style="--ic:rgba(99,102,241,.18);--icbg:rgba(99,102,241,.12);--ic-solid:var(--c-dash)"><span class="icon">📊</span> Dashboard</button>
+    <button class="nav-item" id="n-accounts" onclick="nav('accounts')" style="--ic:rgba(168,85,247,.18);--icbg:rgba(168,85,247,.12);--ic-solid:var(--c-acc)"><span class="icon">📱</span> Configurar contas</button>
+    <button class="nav-item" id="n-videos" onclick="nav('videos')" style="--ic:rgba(236,72,153,.18);--icbg:rgba(236,72,153,.12);--ic-solid:var(--c-vid)"><span class="icon">🎬</span> Postar vídeos</button>
+    <button class="nav-item" id="n-captions" onclick="nav('captions')" style="--ic:rgba(245,158,11,.18);--icbg:rgba(245,158,11,.12);--ic-solid:var(--c-cap)"><span class="icon">💬</span> Legendas</button>
+    <button class="nav-item" id="n-settings" onclick="nav('settings')" style="display:none;--ic:rgba(16,185,129,.18);--icbg:rgba(16,185,129,.12);--ic-solid:var(--c-set)"><span class="icon">⚙️</span> Configurações</button>
   </nav>
   <!-- ADMIN NAV (só aparece para admins) -->
   <div id="adminNav" style="display:none">
-    <div class="sb-section-title">🔒 Administrador</div>
+    <div class="sb-section-title gold">🔒 Administrador</div>
     <nav style="padding:0 8px 8px">
-      <button class="nav-item" id="n-admin-users" onclick="nav('admin-users')"><span class="icon">👥</span> Contas de usuários</button>
-      <button class="nav-item" id="n-admin-activity" onclick="nav('admin-activity')"><span class="icon">📋</span> Log de atividades</button>
+      <button class="nav-item" id="n-admin-users" onclick="nav('admin-users')" style="--ic:rgba(251,191,36,.18);--icbg:rgba(251,191,36,.12);--ic-solid:var(--c-au)"><span class="icon">👥</span> Contas de usuários</button>
+      <button class="nav-item" id="n-admin-activity" onclick="nav('admin-activity')" style="--ic:rgba(56,189,248,.18);--icbg:rgba(56,189,248,.12);--ic-solid:var(--c-al)"><span class="icon">📋</span> Log de atividades</button>
     </nav>
   </div>
   <div class="sb-queue" id="sbQueue" style="display:none">
