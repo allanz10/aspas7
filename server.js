@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// MeuSacoTools — server.js
+// AspaTools — server.js
 // Node 18+ · Express · PostgreSQL (Railway) · B2/R2 via S3 API · Meta Graph API
 // ═══════════════════════════════════════════════════════════════
 const express = require('express');
@@ -13,10 +13,6 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const PORT = process.env.PORT || 3000;
 const TZ = process.env.TZ || 'America/Sao_Paulo';
 const GRAPH = 'https://graph.facebook.com/v19.0';
-// Tokens gerados pelo fluxo "Instagram API with Instagram Login" (prefixo IGAA...) só funcionam
-// nos endpoints de graph.instagram.com — usar graph.facebook.com com eles dá erro de token inválido.
-const IG_LOGIN_GRAPH = 'https://graph.instagram.com/v21.0';
-const isIgLoginToken = (t) => /^IGAA/i.test(String(t || '').trim());
 const APP_URL = (process.env.APP_URL || '').replace(/\/$/, '');
 
 if (!process.env.DATABASE_URL) { console.error('❌ DATABASE_URL não definida'); process.exit(1); }
@@ -52,10 +48,7 @@ async function migrate() {
     category_id TEXT, posts_per_day INT NOT NULL DEFAULT 40,
     start_time TEXT NOT NULL DEFAULT '02:00', end_time TEXT NOT NULL DEFAULT '23:00',
     interval_mode TEXT NOT NULL DEFAULT 'inteligente',
-    graph_host TEXT NOT NULL DEFAULT 'https://graph.facebook.com/v19.0',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-  // Compatibilidade com bancos já existentes (adiciona a coluna se ainda não existir)
-  await q(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS graph_host TEXT NOT NULL DEFAULT 'https://graph.facebook.com/v19.0'`);
   await q(`CREATE TABLE IF NOT EXISTS videos(
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -376,70 +369,6 @@ app.get('/api/accounts', auth, async (req, res) => {
   res.json(r.rows.map(accountJson));
 });
 
-// Adiciona conta colando o Access Token manualmente (modal "Adicionar Conta Instagram").
-// Suporta os dois tipos de token da Meta:
-//   1) Token do fluxo "Instagram API with Instagram Login" (prefixo IGAA...) — valida em graph.instagram.com/me
-//   2) Token de usuário/página do fluxo antigo "Facebook Login for Business" — valida via me/accounts em graph.facebook.com
-app.post('/api/accounts', auth, async (req, res) => {
-  try {
-    const { accessToken, label, postsPerDay, startTime, endTime, intervalMode, categoryId } = req.body || {};
-    const token = String(accessToken || '').trim();
-    if (!token) return res.json({ error: 'Informe o Access Token' });
-
-    let igUserId, username, pageToken, graphHost;
-
-    if (isIgLoginToken(token)) {
-      // ── Instagram API with Instagram Login (não precisa de Página do Facebook) ──
-      graphHost = IG_LOGIN_GRAPH;
-      const me = await fetch(`${IG_LOGIN_GRAPH}/me?fields=user_id,username&access_token=${encodeURIComponent(token)}`)
-        .then(x => x.json());
-      if (me.error) return res.json({ error: me.error.message || 'Token inválido ou expirado' });
-      igUserId = me.user_id || me.id;
-      username = me.username;
-      pageToken = token;
-    } else {
-      // ── Facebook Login for Business (token precisa ter acesso a uma Página vinculada ao Instagram) ──
-      graphHost = GRAPH;
-      const pages = await fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}` +
-        `&limit=100&access_token=${encodeURIComponent(token)}`).then(x => x.json());
-      if (pages.error) return res.json({ error: pages.error.message || 'Token inválido ou expirado' });
-      const withIg = (pages.data || []).find(p => p.instagram_business_account);
-      if (!withIg) return res.json({
-        error: 'Nenhuma conta Instagram Business/Creator vinculada a esse token. Se você gerou o token pelo fluxo "Instagram Login", ele deve começar com "IGAA".'
-      });
-      igUserId = withIg.instagram_business_account.id;
-      username = withIg.instagram_business_account.username;
-      pageToken = withIg.access_token || token;
-    }
-
-    if (!igUserId) return res.json({ error: 'Não foi possível identificar a conta do Instagram a partir desse token' });
-
-    const existing = await q(`SELECT id FROM accounts WHERE user_id=$1 AND ig_user_id=$2`, [req.user.id, igUserId]);
-    let id;
-    if (existing.rows.length) {
-      id = existing.rows[0].id;
-      await q(`UPDATE accounts SET access_token=$1, username=$2, graph_host=$3, label=COALESCE($4,label),
-          posts_per_day=COALESCE($5,posts_per_day), start_time=COALESCE($6,start_time),
-          end_time=COALESCE($7,end_time), interval_mode=COALESCE($8,interval_mode), category_id=$9
-        WHERE id=$10`,
-        [pageToken, username, graphHost, label || null, postsPerDay ? parseInt(postsPerDay) : null,
-         startTime || null, endTime || null, intervalMode || null, categoryId || null, id]);
-    } else {
-      id = uid();
-      await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token,graph_host,category_id,posts_per_day,start_time,end_time,interval_mode)
-               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [id, req.user.id, username, label || username, igUserId, pageToken, graphHost, categoryId || null,
-         parseInt(postsPerDay) || 40, startTime || '02:00', endTime || '23:00', intervalMode || 'inteligente']);
-    }
-    const a = (await q(`SELECT * FROM accounts WHERE id=$1`, [id])).rows[0];
-    await logActivity(req.user, 'account_add', username);
-    res.json({ success: true, account: accountJson(a) });
-  } catch (e) {
-    console.error('POST /api/accounts:', e);
-    res.json({ error: 'Erro ao verificar/adicionar conta. Veja os logs do servidor para detalhes.' });
-  }
-});
-
 app.get('/api/accounts/stats', auth, async (req, res) => {
   const r = await q(`
     SELECT a.id,
@@ -475,8 +404,7 @@ app.post('/api/accounts/:id/test', auth, async (req, res) => {
   if (!a) return res.json({ error: 'Conta não encontrada' });
   if (!a.ig_user_id || !a.access_token) return res.json({ error: 'Conta sem credenciais da Meta — reconecte' });
   try {
-    const host = a.graph_host || GRAPH;
-    const ig = await fetch(`${host}/${a.ig_user_id}?fields=username&access_token=${a.access_token}`).then(x => x.json());
+    const ig = await fetch(`${GRAPH}/${a.ig_user_id}?fields=username&access_token=${a.access_token}`).then(x => x.json());
     if (ig.error) return res.json({ error: ig.error.message || 'Token inválido' });
     if (ig.username && ig.username !== a.username)
       await q(`UPDATE accounts SET username=$1 WHERE id=$2`, [ig.username, a.id]);
@@ -745,10 +673,9 @@ async function publishVideo(v) {
   try {
     if (!v.ig_user_id || !v.access_token) throw new Error('Conta sem credenciais da Meta — reconecte a conta');
     if (!v.b2_url) throw new Error('Vídeo sem URL pública');
-    const host = v.graph_host || GRAPH; // graph.facebook.com (Facebook Login) ou graph.instagram.com (Instagram Login)
 
     await setProgress(v.id, 8, 'Criando container na Meta...');
-    const create = await fetch(`${host}/${v.ig_user_id}/media`, {
+    const create = await fetch(`${GRAPH}/${v.ig_user_id}/media`, {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         media_type: 'REELS', video_url: v.b2_url,
@@ -761,7 +688,7 @@ async function publishVideo(v) {
     let ok = false;
     for (let i = 1; i <= 36; i++) {
       await sleep(5000);
-      const st = await fetch(`${host}/${create.id}?fields=status_code&access_token=${v.access_token}`)
+      const st = await fetch(`${GRAPH}/${create.id}?fields=status_code&access_token=${v.access_token}`)
         .then(x => x.json()).catch(() => ({}));
       if (st.status_code === 'FINISHED') { ok = true; break; }
       if (st.status_code === 'ERROR') throw new Error('O Instagram rejeitou o vídeo (formato/duração)');
@@ -770,7 +697,7 @@ async function publishVideo(v) {
     if (!ok) throw new Error('Timeout: Instagram demorou demais para processar');
 
     await setProgress(v.id, 95, 'Publicando...');
-    const pub = await fetch(`${host}/${v.ig_user_id}/media_publish`, {
+    const pub = await fetch(`${GRAPH}/${v.ig_user_id}/media_publish`, {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ creation_id: create.id, access_token: v.access_token })
     }).then(x => x.json());
@@ -788,7 +715,7 @@ async function publishVideo(v) {
 const publishing = new Set();
 async function tick() {
   try {
-    const due = await q(`SELECT v.*, a.ig_user_id, a.access_token, a.username, a.graph_host
+    const due = await q(`SELECT v.*, a.ig_user_id, a.access_token, a.username
       FROM videos v JOIN accounts a ON a.id = v.account_id
       WHERE v.status='pendente' AND v.scheduled_for <= now()
       ORDER BY v.scheduled_for LIMIT 3`);
@@ -807,7 +734,7 @@ app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(__dirname, 'index
 
 migrate()
   .then(() => {
-    app.listen(PORT, () => console.log(`🚀 MeuSacoTools rodando na porta ${PORT} (TZ: ${TZ})`));
+    app.listen(PORT, () => console.log(`🚀 AspaTools rodando na porta ${PORT} (TZ: ${TZ})`));
     setInterval(tick, 30000);
     setTimeout(tick, 5000);
   })
