@@ -1043,7 +1043,8 @@ updateIntervalPreview();
 async function addAccount(){
   const token=document.getElementById('aa-token').value.trim();const label=document.getElementById('aa-label').value.trim();
   if(!token){toast('Cole o Access Token','er');return;}const btn=document.getElementById('addAccBtn');btn.disabled=true;btn.innerHTML='<div class="spin"></div> Verificando...';
-  try{const r=await api('/api/accounts',{method:'POST',body:JSON.stringify({accessToken:token,label,postsPerDay:document.getElementById('aa-ppd').value,startTime:document.getElementById('aa-st').value,endTime:document.getElementById('aa-et').value,intervalMode:currentMode})});
+  const aaCatEl=document.getElementById('aa-cat');const categoryId=aaCatEl?aaCatEl.value||null:null;
+  try{const r=await api('/api/accounts',{method:'POST',body:JSON.stringify({accessToken:token,label,categoryId,postsPerDay:document.getElementById('aa-ppd').value,startTime:document.getElementById('aa-st').value,endTime:document.getElementById('aa-et').value,intervalMode:currentMode})});
     if(r.success){toast('✅ @'+r.account.username+' adicionada!','ok');closeModal('modalAddAcc');document.getElementById('aa-token').value='';document.getElementById('aa-label').value='';loadAccounts();}else toast('Erro: '+r.error,'er');
   }catch(e){toast('Erro: '+e.message,'er');}btn.disabled=false;btn.innerHTML='✅ Verificar e adicionar';
 }
