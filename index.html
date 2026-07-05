@@ -127,6 +127,17 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 /* STATS */
 .stat-grid{display:grid;gap:8px;margin-bottom:10px}
 .stat-grid.c4{grid-template-columns:repeat(4,1fr)}.stat-grid.c3{grid-template-columns:repeat(3,1fr)}
+.plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:900px}
+.plan-card{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:22px;position:relative;display:flex;flex-direction:column;transition:transform .15s,box-shadow .15s}
+.plan-card.current{border-color:var(--pc,var(--ac));box-shadow:0 0 0 1px var(--pc,var(--ac))}
+.plan-card:hover{transform:translateY(-2px)}
+.plan-card .plan-badge{position:absolute;top:-10px;left:20px;font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:var(--pc,var(--ac));color:#0d0b13}
+.plan-card .plan-name{font-size:15px;font-weight:700;margin-bottom:2px;display:flex;align-items:center;gap:7px}
+.plan-card .plan-price{font-size:22px;font-weight:700;margin:10px 0 14px;letter-spacing:-.5px}
+.plan-card .plan-price small{font-size:11px;font-weight:400;color:var(--tx2)}
+.plan-card ul{list-style:none;margin:0 0 18px;padding:0;flex:1}
+.plan-card li{font-size:12px;color:var(--tx1);padding:5px 0;display:flex;align-items:center;gap:7px}
+.plan-card li::before{content:'✓';color:var(--pc,var(--ac));font-weight:700}
 .stat-box{position:relative;background:var(--s1);border:1px solid var(--b1);border-top:2px solid var(--st-c,var(--b1));border-radius:var(--r);padding:16px 18px;transition:transform .15s,box-shadow .15s,border-color .15s;overflow:hidden}
 .stat-box:hover{transform:translateY(-2px);border-color:var(--b2);box-shadow:0 8px 22px -10px var(--st-sh,rgba(0,0,0,.5))}
 .stat-num{font-size:24px;font-weight:600;line-height:1;margin-bottom:3px;letter-spacing:-.5px}
@@ -264,7 +275,7 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
 .admin-user-email{font-size:11px;color:var(--tx3)}
 .admin-user-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .admin-user-right select{width:auto;padding:4px 8px;font-size:11px}
-@media(max-width:900px){.acc-grid{grid-template-columns:1fr 1fr}.stat-grid.c4{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.acc-grid{grid-template-columns:1fr 1fr}.stat-grid.c4{grid-template-columns:1fr 1fr}.plans-grid{grid-template-columns:1fr}}
 
 /* DASHBOARD */
 .dash-acc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:4px}
@@ -445,6 +456,7 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
     <button class="nav-item" id="n-accounts" onclick="nav('accounts')" style="--ic:rgba(168,85,247,.18);--icbg:rgba(168,85,247,.12);--ic-solid:var(--c-acc)"><span class="icon">📱</span> Configurar contas</button>
     <button class="nav-item" id="n-videos" onclick="nav('videos')" style="--ic:rgba(236,72,153,.18);--icbg:rgba(236,72,153,.12);--ic-solid:var(--c-vid)"><span class="icon">🎬</span> Postar vídeos</button>
     <button class="nav-item" id="n-captions" onclick="nav('captions')" style="--ic:rgba(245,158,11,.18);--icbg:rgba(245,158,11,.12);--ic-solid:var(--c-cap)"><span class="icon">💬</span> Legendas</button>
+    <button class="nav-item" id="n-plans" onclick="nav('plans')" style="--ic:rgba(236,180,60,.18);--icbg:rgba(236,180,60,.12);--ic-solid:#ecb43c"><span class="icon">💎</span> Planos</button>
     <button class="nav-item" id="n-settings" onclick="nav('settings')" style="display:none;--ic:rgba(16,185,129,.18);--icbg:rgba(16,185,129,.12);--ic-solid:var(--c-set)"><span class="icon">⚙️</span> Configurações</button>
   </nav>
   <!-- ADMIN NAV (só aparece para admins) -->
@@ -547,7 +559,23 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
       </div>
       <div id="captionsList"></div>
     </div>
+    <!-- PLANS --><div class="panel" id="panel-plans">
+      <div style="margin-bottom:16px"><p style="font-size:12px;color:var(--tx3)" id="planUsageLine">Carregando...</p></div>
+      <div class="plans-grid" id="plansGrid"></div>
+    </div>
     <!-- SETTINGS --><div class="panel" id="panel-settings">
+      <div id="kirvanoAdminOnly" class="card" style="max-width:620px;margin-bottom:16px;display:none">
+        <div class="card-title">💎 Kirvano (planos e pagamentos)</div>
+        <div class="info-box bl" style="margin-bottom:14px"><strong>Como configurar:</strong><br>1. Copie a URL do webhook abaixo e crie um Webhook na Kirvano (Extensões → Webhooks) apontando pra ela<br>2. Preencha o Product ID de cada plano (aparece na URL do produto/oferta na Kirvano)<br>3. Cole os links de checkout de cada plano (pra aparecer o botão "Assinar")</div>
+        <div class="field"><label>URL do Webhook (configure na Kirvano)</label><input id="kv-webhook" readonly style="opacity:.7;cursor:text" onclick="this.select()"></div>
+        <div class="field"><label>Token do Webhook</label><input id="kv-token" placeholder="Um segredo qualquer, só você e a Kirvano sabem"></div>
+        <div class="r2"><div class="field"><label>Product ID — Plano Pro</label><input id="kv-pid-pro"></div><div class="field"><label>Product ID — Plano Premium</label><input id="kv-pid-premium"></div></div>
+        <div class="r2"><div class="field"><label>Link de Checkout — Pro</label><input id="kv-chk-pro" placeholder="https://pay.kirvano.com/..."></div><div class="field"><label>Link de Checkout — Premium</label><input id="kv-chk-premium" placeholder="https://pay.kirvano.com/..."></div></div>
+        <div class="r2"><div class="field"><label>Preço exibido — Pro</label><input id="kv-price-pro" placeholder="R$ 49,90/mês"></div><div class="field"><label>Preço exibido — Premium</label><input id="kv-price-premium" placeholder="R$ 99,90/mês"></div></div>
+        <div class="r2"><div class="field"><label>Limite de contas — Grátis</label><input id="kv-lim-free" type="number" min="1"></div><div class="field"><label>Limite de contas — Pro</label><input id="kv-lim-pro" type="number" min="1"></div></div>
+        <div class="field" style="max-width:calc(50% - 8px)"><label>Limite de contas — Premium</label><input id="kv-lim-premium" type="number" min="1"></div>
+        <button class="btn btn-p btn-sm" onclick="saveKirvanoSettings()" style="margin-top:6px">💾 Salvar</button>
+      </div>
       <div id="settingsAdminOnly" class="info-box ye" style="display:none;max-width:620px;margin-bottom:16px">🔒 As configurações de armazenamento são gerenciadas pelo administrador.</div>
       <div id="settingsForm" class="card" style="max-width:620px">
         <div class="card-title">🟠 Cloudflare R2 / Backblaze B2</div>
@@ -689,7 +717,7 @@ function toast(msg,type='in'){const t=document.createElement('div');t.className=
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
-const titles={dash:'Dashboard',accounts:'Contas Instagram',videos:'Vídeos',captions:'Legendas Pré-definidas',settings:'Configurações','admin-users':'Gerenciar Usuários','admin-activity':'Log de Atividades'};
+const titles={dash:'Dashboard',accounts:'Contas Instagram',videos:'Vídeos',captions:'Legendas Pré-definidas',plans:'Planos',settings:'Configurações','admin-users':'Gerenciar Usuários','admin-activity':'Log de Atividades'};
 function nav(page){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('act'));
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('act'));
@@ -701,6 +729,7 @@ function nav(page){
   if(page==='videos'){populateAccFilter();loadVideos();}
   if(page==='settings')loadSettings();
   if(page==='captions'){loadCaptionPresets();}
+  if(page==='plans'){loadPlans();}
   if(page==='settings'){loadCategories();}
   if(page==='accounts'){loadCategories();}
   if(page==='admin-users')loadAdminUsers();
@@ -1064,7 +1093,9 @@ async function addAccount(){
   if(!token){toast('Cole o Access Token','er');return;}const btn=document.getElementById('addAccBtn');btn.disabled=true;btn.innerHTML='<div class="spin"></div> Verificando...';
   const aaCatEl=document.getElementById('aa-cat');const categoryId=aaCatEl?aaCatEl.value||null:null;
   try{const r=await api('/api/accounts',{method:'POST',body:JSON.stringify({accessToken:token,label,categoryId,postsPerDay:document.getElementById('aa-ppd').value,startTime:document.getElementById('aa-st').value,endTime:document.getElementById('aa-et').value,intervalMode:currentMode})});
-    if(r.success){toast('✅ @'+r.account.username+' adicionada!','ok');closeModal('modalAddAcc');document.getElementById('aa-token').value='';document.getElementById('aa-label').value='';loadAccounts();}else toast('Erro: '+r.error,'er');
+    if(r.success){toast('✅ @'+r.account.username+' adicionada!','ok');closeModal('modalAddAcc');document.getElementById('aa-token').value='';document.getElementById('aa-label').value='';loadAccounts();}
+    else if(r.upgradeRequired){toast(r.error,'er');closeModal('modalAddAcc');nav('plans');}
+    else toast('Erro: '+r.error,'er');
   }catch(e){toast('Erro: '+e.message,'er');}btn.disabled=false;btn.innerHTML='✅ Verificar e adicionar';
 }
 async function testAccount(id){toast('Testando...','in');const r=await api('/api/accounts/'+id+'/test',{method:'POST'});if(r.success)toast('✓ @'+r.username+' ok','ok');else toast('Erro: '+r.error,'er');}
@@ -1129,16 +1160,70 @@ async function loadSettings(){
   const isAdm=currentUser&&currentUser.role==='admin';
   const adminOnly=document.getElementById('settingsAdminOnly');
   const form=document.getElementById('settingsForm');
+  const kvForm=document.getElementById('kirvanoAdminOnly');
   if(adminOnly)adminOnly.style.display=isAdm?'none':'block';
   if(form)form.style.display=isAdm?'block':'none';
+  if(kvForm)kvForm.style.display=isAdm?'block':'none';
   if(isAdm){
     if(r.b2KeyId)document.getElementById('b2-kid').value=r.b2KeyId;
     if(r.b2AppKey)document.getElementById('b2-key').value=r.b2AppKey;
     if(r.b2Bucket)document.getElementById('b2-bkt').value=r.b2Bucket;
     if(r.b2Endpoint)document.getElementById('b2-ep').value=r.b2Endpoint;
     if(r.b2PublicUrl)document.getElementById('b2-pub').value=r.b2PublicUrl;
+    document.getElementById('kv-webhook').value=location.origin+'/webhooks/kirvano?token='+(r.kirvanoToken||'SEU_TOKEN_AQUI');
+    if(r.kirvanoToken)document.getElementById('kv-token').value=r.kirvanoToken;
+    if(r.kirvanoProProductId)document.getElementById('kv-pid-pro').value=r.kirvanoProProductId;
+    if(r.kirvanoPremiumProductId)document.getElementById('kv-pid-premium').value=r.kirvanoPremiumProductId;
+    if(r.kirvanoCheckoutPro)document.getElementById('kv-chk-pro').value=r.kirvanoCheckoutPro;
+    if(r.kirvanoCheckoutPremium)document.getElementById('kv-chk-premium').value=r.kirvanoCheckoutPremium;
+    if(r.planPricePro)document.getElementById('kv-price-pro').value=r.planPricePro;
+    if(r.planPricePremium)document.getElementById('kv-price-premium').value=r.planPricePremium;
+    document.getElementById('kv-lim-free').value=r.planLimitFree||1;
+    document.getElementById('kv-lim-pro').value=r.planLimitPro||5;
+    document.getElementById('kv-lim-premium').value=r.planLimitPremium||20;
   }
 }
+async function saveKirvanoSettings(){
+  const body={
+    kirvanoToken:document.getElementById('kv-token').value.trim(),
+    kirvanoProProductId:document.getElementById('kv-pid-pro').value.trim(),
+    kirvanoPremiumProductId:document.getElementById('kv-pid-premium').value.trim(),
+    kirvanoCheckoutPro:document.getElementById('kv-chk-pro').value.trim(),
+    kirvanoCheckoutPremium:document.getElementById('kv-chk-premium').value.trim(),
+    planPricePro:document.getElementById('kv-price-pro').value.trim(),
+    planPricePremium:document.getElementById('kv-price-premium').value.trim(),
+    planLimitFree:document.getElementById('kv-lim-free').value.trim(),
+    planLimitPro:document.getElementById('kv-lim-pro').value.trim(),
+    planLimitPremium:document.getElementById('kv-lim-premium').value.trim(),
+  };
+  await api('/api/settings',{method:'POST',body:JSON.stringify(body)});
+  toast('✅ Salvo!','ok');
+  loadSettings();
+}
+async function loadPlans(){
+  const r=await api('/api/plans');
+  const cur=r.currentPlan;
+  document.getElementById('planUsageLine').textContent=`Você está no plano ${planLabel(cur)} · ${r.accountsUsed}/${r.limits[cur]} contas do Instagram conectadas`+(r.planExpiresAt?` · renova em ${fmtDT(r.planExpiresAt)}`:'');
+  const defs=[
+    {id:'free',name:'Grátis',color:'#8b8fa3',price:'R$ 0',sub:'/sempre',checkout:null,features:[`${r.limits.free} conta do Instagram`,'Agendamento automático','Upload direto pro storage']},
+    {id:'pro',name:'Pro',color:'#a78bfa',price:r.prices.pro||'—',sub:r.prices.pro?'':'',checkout:r.checkout.pro,features:[`${r.limits.pro} contas do Instagram`,'Tudo do plano Grátis','Suporte prioritário']},
+    {id:'premium',name:'Premium',color:'#ecb43c',price:r.prices.premium||'—',sub:r.prices.premium?'':'',checkout:r.checkout.premium,features:[`${r.limits.premium} contas do Instagram`,'Tudo do plano Pro','Prioridade máxima na fila']},
+  ];
+  document.getElementById('plansGrid').innerHTML=defs.map(p=>{
+    const isCurrent=p.id===cur;
+    const btn=isCurrent?'<button class="btn btn-g btn-sm" disabled style="width:100%;justify-content:center">Plano atual</button>'
+      :(p.checkout?`<a href="${p.checkout}" target="_blank" class="btn btn-p btn-sm" style="width:100%;justify-content:center;text-decoration:none">Assinar ${p.name}</a>`
+      :'<button class="btn btn-g btn-sm" disabled style="width:100%;justify-content:center">Em breve</button>');
+    return `<div class="plan-card ${isCurrent?'current':''}" style="--pc:${p.color}">
+      ${isCurrent?'<span class="plan-badge">Seu plano</span>':''}
+      <div class="plan-name">${p.name}</div>
+      <div class="plan-price">${p.price}<small>${p.sub}</small></div>
+      <ul>${p.features.map(f=>`<li>${f}</li>`).join('')}</ul>
+      ${btn}
+    </div>`;
+  }).join('');
+}
+function planLabel(p){return {free:'Grátis',pro:'Pro',premium:'Premium'}[p]||p;}
 async function saveSettings(){const body={b2KeyId:document.getElementById('b2-kid').value.trim(),b2AppKey:document.getElementById('b2-key').value.trim(),b2Bucket:document.getElementById('b2-bkt').value.trim(),b2Endpoint:document.getElementById('b2-ep').value.trim(),b2PublicUrl:document.getElementById('b2-pub').value.trim()};if(!body.b2KeyId||!body.b2Bucket){toast('Preencha Key ID e Bucket','er');return;}await api('/api/settings',{method:'POST',body:JSON.stringify(body)});toast('✅ Salvo!','ok');}
 
 // ═══ ADMIN PANEL ═══
@@ -1176,7 +1261,7 @@ function renderAdminUsers(){
       </div>
     </div>
     <div class="admin-user-right">
-      <select onchange="adminChangePlan('${u.id}',this.value)" style="width:100px"><option value="free" ${u.plan==='free'?'selected':''}>Gratuito</option><option value="pro" ${u.plan==='pro'?'selected':''}>Pro</option><option value="enterprise" ${u.plan==='enterprise'?'selected':''}>Enterprise</option></select>
+      <select onchange="adminChangePlan('${u.id}',this.value)" style="width:100px"><option value="free" ${u.plan==='free'?'selected':''}>Grátis</option><option value="pro" ${u.plan==='pro'?'selected':''}>Pro</option><option value="premium" ${u.plan==='premium'?'selected':''}>Premium</option></select>
       <button class="btn btn-sm ${u.role==='admin'?'btn-p':'btn-g'}" onclick="adminToggleRole('${u.id}','${u.role}')">${u.role==='admin'?'🔒 Admin':'👤 User'}</button>
       <button class="btn btn-sm ${u.status==='active'?'btn-d':'btn-p'}" onclick="adminToggleStatus('${u.id}','${u.status}')">${u.status==='active'?'Suspender':'Ativar'}</button>
       ${u.id!==currentUser.id?`<button class="btn btn-sm btn-d" onclick="adminDeleteUser('${u.id}')">🗑</button>`:''}
