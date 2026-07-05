@@ -708,6 +708,7 @@ async function checkSession() {
   } catch { authToken = ''; localStorage.removeItem('ct_token'); }
 }
 checkSession();
+if (new URLSearchParams(location.search).get('signup') === '1') showSignup();
 
 // ═══ APP LOGIC (same as before but using api() helper) ═══
 function updateClock(){const n=new Date();document.getElementById('topbarDate').textContent=n.toLocaleDateString('pt-BR')+' '+n.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
