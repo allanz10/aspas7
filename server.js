@@ -37,6 +37,15 @@ async function migrate() {
     password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user',
     status TEXT NOT NULL DEFAULT 'active', plan TEXT NOT NULL DEFAULT 'free',
     login_count INT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMPTZ`);
+  // "enterprise" era o nome antigo do plano mais alto — padroniza para "premium"
+  await q(`UPDATE users SET plan='premium' WHERE plan='enterprise'`);
+  // Guarda planos comprados via Kirvano por e-mail, antes mesmo do cadastro no site
+  await q(`CREATE TABLE IF NOT EXISTS plan_grants(
+    email TEXT PRIMARY KEY,
+    plan TEXT NOT NULL,
+    expires_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   await q(`CREATE TABLE IF NOT EXISTS sessions(
     token TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -88,7 +97,7 @@ function parseCookies(req) {
 }
 
 function userJson(u) {
-  return { id: u.id, name: u.name, email: u.email, role: u.role, plan: u.plan, status: u.status };
+  return { id: u.id, name: u.name, email: u.email, role: u.role, plan: u.plan, planExpiresAt: u.plan_expires_at, status: u.status };
 }
 
 async function logActivity(user, action, detail) {
@@ -171,6 +180,12 @@ app.post('/api/auth/signup', async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     await q(`INSERT INTO users(id,name,email,password_hash,role) VALUES($1,$2,$3,$4,$5)`,
       [id, String(name).trim(), em, hash, role]);
+    // Se essa pessoa já comprou um plano pela Kirvano antes de se cadastrar, aplica agora
+    const grant = await q(`SELECT plan, expires_at FROM plan_grants WHERE email=$1`, [em]);
+    if (grant.rows.length) {
+      await q(`UPDATE users SET plan=$1, plan_expires_at=$2 WHERE id=$3`,
+        [grant.rows[0].plan, grant.rows[0].expires_at, id]);
+    }
     const u = (await q(`SELECT * FROM users WHERE id=$1`, [id])).rows[0];
     const token = await createSession(res, id);
     await logActivity(u, 'signup');
@@ -251,7 +266,11 @@ app.get('/api/auth/facebook/callback', async (req, res) => {
       `&limit=100&access_token=${userToken}`).then(x => x.json());
     if (pages.error) { console.error('FB pages:', pages.error); return res.redirect('/?fb=pages_error'); }
 
-    let added = 0;
+    let added = 0, skippedLimit = 0;
+    const limits = await getPlanLimits();
+    const userRow = (await q(`SELECT plan FROM users WHERE id=$1`, [userId])).rows[0];
+    const limit = limits[userRow?.plan] ?? limits.free;
+    let currentCount = (await q(`SELECT COUNT(*)::int AS c FROM accounts WHERE user_id=$1`, [userId])).rows[0].c;
     for (const p of (pages.data || [])) {
       const ig = p.instagram_business_account;
       if (!ig) continue;
@@ -260,13 +279,15 @@ app.get('/api/auth/facebook/callback', async (req, res) => {
         await q(`UPDATE accounts SET access_token=$1, username=$2 WHERE id=$3`,
           [p.access_token, ig.username || p.name, existing.rows[0].id]);
       } else {
+        if (currentCount >= limit) { skippedLimit++; continue; } // limite do plano atingido — não adiciona novas
         await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token)
                  VALUES($1,$2,$3,$4,$5,$6)`,
           [uid(), userId, ig.username || p.name, p.name, ig.id, p.access_token]);
+        currentCount++;
       }
       added++;
     }
-    res.redirect('/?fb=ok&added=' + added);
+    res.redirect('/?fb=ok&added=' + added + (skippedLimit ? '&limitReached=' + skippedLimit : ''));
   } catch (e) { console.error(e); res.redirect('/?fb=error'); }
 });
 
@@ -312,7 +333,19 @@ app.post('/api/captions', auth, async (req, res) => {
 });
 
 // ═══ CONFIGURAÇÕES (storage B2/R2 — admin) ══════════════════════
-const SETTING_KEYS = ['b2KeyId', 'b2AppKey', 'b2Bucket', 'b2Endpoint', 'b2PublicUrl'];
+const SETTING_KEYS = ['b2KeyId', 'b2AppKey', 'b2Bucket', 'b2Endpoint', 'b2PublicUrl',
+  'kirvanoToken', 'kirvanoProProductId', 'kirvanoPremiumProductId', 'kirvanoCheckoutPro', 'kirvanoCheckoutPremium',
+  'planLimitFree', 'planLimitPro', 'planLimitPremium', 'planPricePro', 'planPricePremium'];
+
+const DEFAULT_PLAN_LIMITS = { free: 1, pro: 5, premium: 20 };
+async function getPlanLimits() {
+  const s = await getSettings();
+  return {
+    free: parseInt(s.planLimitFree) || DEFAULT_PLAN_LIMITS.free,
+    pro: parseInt(s.planLimitPro) || DEFAULT_PLAN_LIMITS.pro,
+    premium: parseInt(s.planLimitPremium) || DEFAULT_PLAN_LIMITS.premium,
+  };
+}
 
 app.get('/api/settings', auth, async (req, res) => {
   if (req.user.role !== 'admin') return res.json({});
@@ -327,6 +360,69 @@ app.post('/api/settings', auth, adminOnly, async (req, res) => {
       [k, String(body[k])]);
   }
   res.json({ success: true });
+});
+
+// Catálogo de planos + uso atual — visível para qualquer usuário logado (sem expor segredos de admin)
+app.get('/api/plans', auth, async (req, res) => {
+  const s = await getSettings();
+  const limits = await getPlanLimits();
+  const used = (await q(`SELECT COUNT(*)::int AS c FROM accounts WHERE user_id=$1`, [req.user.id])).rows[0].c;
+  res.json({
+    currentPlan: req.user.plan,
+    planExpiresAt: req.user.plan_expires_at,
+    accountsUsed: used,
+    limits,
+    prices: { pro: s.planPricePro || '', premium: s.planPricePremium || '' },
+    checkout: { pro: s.kirvanoCheckoutPro || null, premium: s.kirvanoCheckoutPremium || null }
+  });
+});
+
+// ═══ WEBHOOK KIRVANO (pagamentos) ═══════════════════════════════
+// Configure em: Kirvano → Extensões → Webhooks → URL = https://SEUDOMINIO/webhooks/kirvano?token=SEU_TOKEN
+// O "token" é definido no painel Configurações > Kirvano, e serve só pra confirmar que a chamada é legítima.
+const KIRVANO_UPGRADE_EVENTS = ['SALE_APPROVED', 'SUBSCRIPTION_RENEWED'];
+const KIRVANO_DOWNGRADE_EVENTS = ['SUBSCRIPTION_CANCELED', 'SUBSCRIPTION_EXPIRED', 'SALE_REFUNDED', 'SALE_CHARGEBACK', 'SALE_REFUSED'];
+
+app.post('/webhooks/kirvano', async (req, res) => {
+  try {
+    const s = await getSettings();
+    const expected = s.kirvanoToken;
+    const got = req.query.token || req.headers['x-webhook-token'] || '';
+    if (expected && got !== expected) return res.status(401).json({ error: 'Token inválido' });
+
+    const body = req.body || {};
+    const event = body.event;
+    const email = String((body.customer && body.customer.email) || '').trim().toLowerCase();
+    if (!email) return res.json({ received: true });
+
+    let newPlan = null, expiresAt = null;
+    if (KIRVANO_UPGRADE_EVENTS.includes(event)) {
+      const ids = (body.products || []).map(p => p.offer_id || p.id).filter(Boolean);
+      if (s.kirvanoPremiumProductId && ids.includes(s.kirvanoPremiumProductId)) newPlan = 'premium';
+      else if (s.kirvanoProProductId && ids.includes(s.kirvanoProProductId)) newPlan = 'pro';
+      if (!newPlan) return res.json({ received: true, note: 'Produto não mapeado a nenhum plano' });
+      expiresAt = (body.plan && body.plan.next_charge_date) || null;
+    } else if (KIRVANO_DOWNGRADE_EVENTS.includes(event)) {
+      newPlan = 'free';
+      expiresAt = null;
+    } else {
+      return res.json({ received: true }); // evento que não altera plano (boleto/pix gerado, carrinho abandonado, etc.)
+    }
+
+    await q(`INSERT INTO plan_grants(email, plan, expires_at, updated_at) VALUES($1,$2,$3,now())
+             ON CONFLICT (email) DO UPDATE SET plan=$2, expires_at=$3, updated_at=now()`,
+      [email, newPlan, expiresAt]);
+
+    const u = await q(`SELECT id FROM users WHERE email=$1`, [email]);
+    if (u.rows.length) {
+      await q(`UPDATE users SET plan=$1, plan_expires_at=$2 WHERE id=$3`, [newPlan, expiresAt, u.rows[0].id]);
+      await logActivity({ id: u.rows[0].id, email }, 'plan_webhook', `${event} -> ${newPlan}`);
+    }
+    res.json({ received: true });
+  } catch (e) {
+    console.error('Webhook Kirvano:', e);
+    res.status(500).json({ error: 'Erro ao processar webhook' });
+  }
 });
 
 // ═══ AGENDAMENTO — helpers ══════════════════════════════════════
@@ -425,6 +521,16 @@ app.post('/api/accounts', auth, async (req, res) => {
         [pageToken, username, graphHost, label || null, postsPerDay ? parseInt(postsPerDay) : null,
          startTime || null, endTime || null, intervalMode || null, categoryId || null, id]);
     } else {
+      // Limite de contas conforme o plano do usuário (só se aplica a contas NOVAS)
+      const limits = await getPlanLimits();
+      const limit = limits[req.user.plan] ?? limits.free;
+      const countR = await q(`SELECT COUNT(*)::int AS c FROM accounts WHERE user_id=$1`, [req.user.id]);
+      if (countR.rows[0].c >= limit) {
+        return res.json({
+          error: `Seu plano atual (${req.user.plan}) permite no máximo ${limit} conta(s) do Instagram. Faça upgrade para conectar mais contas.`,
+          upgradeRequired: true
+        });
+      }
       id = uid();
       await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token,graph_host,category_id,posts_per_day,start_time,end_time,interval_mode)
                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
