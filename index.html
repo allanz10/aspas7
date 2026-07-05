@@ -36,25 +36,57 @@
 body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-serif;display:flex;min-height:100vh;font-size:13px;-webkit-font-smoothing:antialiased}
 
 /* AUTH */
-.auth-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
+.auth-screen{position:fixed;inset:0;background:var(--bg);display:flex;z-index:9999}
 .auth-screen.hidden{display:none}
-.auth-box{width:100%;max-width:360px;padding:32px}
-.auth-logo{text-align:center;margin-bottom:32px}
-.auth-logo-icon{display:inline-flex;width:44px;height:44px;background:var(--s3);border:1px solid var(--b1);border-radius:12px;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px}
-.auth-logo h1{font-size:20px;font-weight:600;letter-spacing:-.4px;margin-bottom:4px}
-.auth-logo p{font-size:12px;color:var(--tx2)}
-.auth-field{margin-bottom:12px}
+
+.auth-side{flex:1;position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:48px;background:linear-gradient(160deg,var(--s1),var(--bg));border-right:1px solid var(--b1);overflow:hidden}
+.auth-side::before{content:'';position:absolute;top:-18%;left:-12%;width:460px;height:460px;border-radius:50%;background:radial-gradient(circle,var(--p3),transparent 70%)}
+.auth-side::after{content:'';position:absolute;bottom:-25%;right:-15%;width:380px;height:380px;border-radius:50%;background:radial-gradient(circle,rgba(236,72,153,.08),transparent 70%)}
+.auth-side-top{position:relative}
+.auth-brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;letter-spacing:-.2px;margin-bottom:64px}
+.auth-brand-icon{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#ec4899);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;box-shadow:0 2px 10px rgba(99,102,241,.4)}
+.auth-side h2{font-size:28px;font-weight:700;letter-spacing:-.9px;line-height:1.25;max-width:360px;margin-bottom:14px}
+.auth-side h2 .g{background:linear-gradient(90deg,#a78bfa,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent}
+.auth-side-sub{font-size:13px;color:var(--tx1);max-width:300px;line-height:1.65;margin-bottom:34px}
+
+.auth-mini-queue{position:relative;background:var(--s2);border:1px solid var(--b1);border-radius:14px;padding:6px 16px;max-width:300px}
+.amq-row{display:flex;align-items:center;gap:10px;padding:10px 0;font-size:12px}
+.amq-row+.amq-row{border-top:1px solid var(--b1)}
+.amq-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.amq-dot.ok{background:var(--ac)}
+.amq-dot.now{background:#a78bfa;box-shadow:0 0 0 3px rgba(139,92,246,.22)}
+.amq-dot.pend{background:var(--tx3)}
+.amq-txt{flex:1;color:var(--tx1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amq-row.ok .amq-txt, .amq-row.now .amq-txt{color:var(--tx)}
+.amq-time{color:var(--tx3);font-size:11px;flex-shrink:0}
+
+.auth-side-bottom{position:relative;display:flex;flex-direction:column;gap:10px}
+.auth-trust{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--tx2)}
+.auth-trust .ic{width:22px;height:22px;border-radius:6px;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+
+.auth-main{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;min-width:0}
+.auth-box{width:100%;max-width:368px;background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:36px 32px;box-shadow:0 20px 60px -20px rgba(0,0,0,.5)}
+.auth-logo{margin-bottom:26px}
+.auth-logo h1{font-size:19px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px}
+.auth-logo p{font-size:12.5px;color:var(--tx2)}
+.auth-field{margin-bottom:13px}
 .auth-field label{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px;letter-spacing:.02em}
-.auth-field input{width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s}
+.auth-field .fi{position:relative}
+.auth-field .fi .ic{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.55;pointer-events:none}
+.auth-field input{width:100%;padding:10px 12px 10px 34px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}
 .auth-field input:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.16)}
 .auth-error{padding:9px 12px;border-radius:8px;background:var(--rd2);border:1px solid rgba(255,85,85,.15);color:var(--rd);font-size:12px;margin-bottom:12px;display:none}
 .auth-error.show{display:block}
-.auth-btn{width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Geist',sans-serif;cursor:pointer;transition:all .15s;letter-spacing:-.1px;box-shadow:0 4px 16px -4px rgba(139,92,246,.5)}
+.auth-btn{width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Geist',sans-serif;cursor:pointer;transition:all .15s;letter-spacing:-.1px;box-shadow:0 4px 16px -4px rgba(139,92,246,.5);margin-top:4px}
 .auth-btn:hover{filter:brightness(1.08);box-shadow:0 6px 20px -4px rgba(139,92,246,.6);transform:translateY(-1px)}
 .auth-btn:disabled{opacity:.4;cursor:wait}
-.auth-switch{text-align:center;margin-top:16px;font-size:12px;color:var(--tx2)}
+.auth-switch{text-align:center;margin-top:18px;font-size:12px;color:var(--tx2)}
 .auth-switch a{color:var(--tx1);cursor:pointer;font-weight:500}
 .auth-switch a:hover{color:var(--tx)}
+
+@media(max-width:860px){
+  .auth-side{display:none}
+}
 
 /* APP */
 .app-wrap{display:none;width:100%;min-height:100vh}
@@ -349,34 +381,54 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
      AUTH SCREEN (LOGIN / SIGNUP)
      ═══════════════════════════════════════════ -->
 <div class="auth-screen" id="authScreen">
-  <div class="auth-box">
-    <!-- LOGIN -->
-    <div id="authLogin">
-      <div class="auth-logo">
-        <div class="auth-logo-icon">✂️</div>
-        <h1>AspaTools</h1>
-        <p>Entre na sua conta</p>
+
+  <!-- LADO ESQUERDO — marca e visual (some no mobile) -->
+  <div class="auth-side">
+    <div class="auth-side-top">
+      <div class="auth-brand"><div class="auth-brand-icon">✂️</div>AspaTools</div>
+      <h2>Sua fila de Reels,<br><span class="g">sempre publicando.</span></h2>
+      <p class="auth-side-sub">Envie seus vídeos uma vez. O AspaTools organiza a fila e publica sozinho, direto pela API oficial da Meta.</p>
+      <div class="auth-mini-queue">
+        <div class="amq-row ok"><span class="amq-dot ok"></span><span class="amq-txt">reel_promo_03.mp4 · publicado</span><span class="amq-time">09:40</span></div>
+        <div class="amq-row now"><span class="amq-dot now"></span><span class="amq-txt">reel_lancamento.mp4 · publicando</span><span class="amq-time">12:35</span></div>
+        <div class="amq-row"><span class="amq-dot pend"></span><span class="amq-txt">reel_depoimento.mp4 · na fila</span><span class="amq-time">14:05</span></div>
       </div>
-      <div class="auth-error" id="loginError"></div>
-      <div class="auth-field"><label>E-mail</label><input type="email" id="loginEmail" placeholder="seu@email.com"></div>
-      <div class="auth-field"><label>Senha</label><input type="password" id="loginPass" placeholder="••••••••"></div>
-      <button class="auth-btn" id="loginBtn" onclick="doLogin()">Entrar</button>
-      <div class="auth-switch">Não tem conta? <a onclick="showSignup()">Criar conta</a></div>
     </div>
-    <!-- SIGNUP -->
-    <div id="authSignup" style="display:none">
-      <div class="auth-logo">
-        <div class="auth-logo-icon">✂️</div>
-        <h1>Criar Conta</h1>
-        <p>Comece a usar o AspaTools</p>
+    <div class="auth-side-bottom">
+      <div class="auth-trust"><span class="ic">🔐</span>Seus tokens ficam só com você</div>
+      <div class="auth-trust"><span class="ic">⚡</span>Configuração em 5 minutos</div>
+    </div>
+  </div>
+
+  <!-- LADO DIREITO — formulário -->
+  <div class="auth-main">
+    <div class="auth-box">
+      <!-- LOGIN -->
+      <div id="authLogin">
+        <div class="auth-logo">
+          <h1>Bem-vindo de volta</h1>
+          <p>Entre na sua conta AspaTools</p>
+        </div>
+        <div class="auth-error" id="loginError"></div>
+        <div class="auth-field"><label>E-mail</label><div class="fi"><span class="ic">✉️</span><input type="email" id="loginEmail" placeholder="seu@email.com"></div></div>
+        <div class="auth-field"><label>Senha</label><div class="fi"><span class="ic">🔒</span><input type="password" id="loginPass" placeholder="••••••••"></div></div>
+        <button class="auth-btn" id="loginBtn" onclick="doLogin()">Entrar</button>
+        <div class="auth-switch">Não tem conta? <a onclick="showSignup()">Criar conta</a></div>
       </div>
-      <div class="auth-error" id="signupError"></div>
-      <div class="auth-field"><label>Nome</label><input type="text" id="signupName" placeholder="Seu nome"></div>
-      <div class="auth-field"><label>E-mail</label><input type="email" id="signupEmail" placeholder="seu@email.com"></div>
-      <div class="auth-field"><label>Senha</label><input type="password" id="signupPass" placeholder="Mínimo 6 caracteres"></div>
-      <div class="auth-field"><label>Confirmar Senha</label><input type="password" id="signupPass2" placeholder="Repita a senha"></div>
-      <button class="auth-btn" id="signupBtn" onclick="doSignup()">Criar conta</button>
-      <div class="auth-switch">Já tem conta? <a onclick="showLogin()">Entrar</a></div>
+      <!-- SIGNUP -->
+      <div id="authSignup" style="display:none">
+        <div class="auth-logo">
+          <h1>Criar conta</h1>
+          <p>Comece a usar o AspaTools</p>
+        </div>
+        <div class="auth-error" id="signupError"></div>
+        <div class="auth-field"><label>Nome</label><div class="fi"><span class="ic">👤</span><input type="text" id="signupName" placeholder="Seu nome"></div></div>
+        <div class="auth-field"><label>E-mail</label><div class="fi"><span class="ic">✉️</span><input type="email" id="signupEmail" placeholder="seu@email.com"></div></div>
+        <div class="auth-field"><label>Senha</label><div class="fi"><span class="ic">🔒</span><input type="password" id="signupPass" placeholder="Mínimo 6 caracteres"></div></div>
+        <div class="auth-field"><label>Confirmar senha</label><div class="fi"><span class="ic">🔒</span><input type="password" id="signupPass2" placeholder="Repita a senha"></div></div>
+        <button class="auth-btn" id="signupBtn" onclick="doSignup()">Criar conta</button>
+        <div class="auth-switch">Já tem conta? <a onclick="showLogin()">Entrar</a></div>
+      </div>
     </div>
   </div>
 </div>
