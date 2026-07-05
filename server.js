@@ -1,921 +1,1604 @@
-// ═══════════════════════════════════════════════════════════════
-// AspaTools — server.js
-// Node 18+ · Express · PostgreSQL (Railway) · B2/R2 via S3 API · Meta Graph API
-// ═══════════════════════════════════════════════════════════════
-const express = require('express');
-const path = require('path');
-const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
-const { Pool } = require('pg');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>7 ASpA — Automação de postagens</title>
 
-const PORT = process.env.PORT || 3000;
-const TZ = process.env.TZ || 'America/Sao_Paulo';
-const GRAPH = 'https://graph.facebook.com/v19.0';
-// Tokens gerados pelo fluxo "Instagram API with Instagram Login" (prefixo IGAA...) só funcionam
-// nos endpoints de graph.instagram.com — usar graph.facebook.com com eles dá erro de token inválido.
-const IG_LOGIN_GRAPH = 'https://graph.instagram.com/v21.0';
-const isIgLoginToken = (t) => /^IGAA/i.test(String(t || '').trim());
-const APP_URL = (process.env.APP_URL || '').replace(/\/$/, '');
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap');
 
-if (!process.env.DATABASE_URL) { console.error('❌ DATABASE_URL não definida'); process.exit(1); }
+*{margin:0;padding:0;box-sizing:border-box}
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes('railway.internal') || process.env.PGSSLMODE === 'disable'
-    ? false : { rejectUnauthorized: false }
-});
-const q = (text, params) => pool.query(text, params);
-const uid = () => crypto.randomUUID();
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-// ─── MIGRAÇÕES (rodam automaticamente no boot) ──────────────────
-async function migrate() {
-  await q(`CREATE TABLE IF NOT EXISTS users(
-    id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'user',
-    status TEXT NOT NULL DEFAULT 'active', plan TEXT NOT NULL DEFAULT 'free',
-    login_count INT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-  await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMPTZ`);
-  // "enterprise" era o nome antigo do plano mais alto — padroniza para "premium"
-  await q(`UPDATE users SET plan='premium' WHERE plan='enterprise'`);
-  // Guarda planos comprados via Kirvano por e-mail, antes mesmo do cadastro no site
-  await q(`CREATE TABLE IF NOT EXISTS plan_grants(
-    email TEXT PRIMARY KEY,
-    plan TEXT NOT NULL,
-    expires_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-  await q(`CREATE TABLE IF NOT EXISTS sessions(
-    token TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ NOT NULL)`);
-  await q(`CREATE TABLE IF NOT EXISTS categories(
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name TEXT NOT NULL, color TEXT NOT NULL DEFAULT '#7c5cff')`);
-  await q(`CREATE TABLE IF NOT EXISTS accounts(
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    username TEXT, label TEXT, ig_user_id TEXT, access_token TEXT,
-    category_id TEXT, posts_per_day INT NOT NULL DEFAULT 40,
-    start_time TEXT NOT NULL DEFAULT '02:00', end_time TEXT NOT NULL DEFAULT '23:00',
-    interval_mode TEXT NOT NULL DEFAULT 'inteligente',
-    graph_host TEXT NOT NULL DEFAULT 'https://graph.facebook.com/v19.0',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-  // Compatibilidade com bancos já existentes (adiciona a coluna se ainda não existir)
-  await q(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS graph_host TEXT NOT NULL DEFAULT 'https://graph.facebook.com/v19.0'`);
-  await q(`CREATE TABLE IF NOT EXISTS videos(
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    batch_id TEXT, original_name TEXT NOT NULL, key TEXT, b2_url TEXT,
-    bytes BIGINT DEFAULT 0, caption TEXT DEFAULT '', hashtags TEXT DEFAULT '',
-    cycle INT NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'pendente',
-    error_msg TEXT, scheduled_for TIMESTAMPTZ, posted_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-  await q(`CREATE INDEX IF NOT EXISTS idx_videos_due ON videos(status, scheduled_for)`);
-  await q(`CREATE TABLE IF NOT EXISTS captions(
-    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    data JSONB NOT NULL DEFAULT '[]')`);
-  await q(`CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT)`);
-  await q(`CREATE TABLE IF NOT EXISTS activity(
-    id BIGSERIAL PRIMARY KEY, user_id TEXT, email TEXT, action TEXT NOT NULL,
-    detail TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
-  await q(`CREATE TABLE IF NOT EXISTS oauth_states(
-    state TEXT PRIMARY KEY, user_id TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+:root{
+  --bg:#0d0b13;
+  --s1:#151220;
+  --s2:#1b1729;
+  --s3:#231d34;
+  --b1:#2a2338;
+  --b2:#372e49;
+  --p:#e9e4ff;
+  --p2:#a78bfa;
+  --p3:rgba(139,92,246,.09);
+  --p4:rgba(139,92,246,.045);
+  --ac:#3ecf8e;
+  --ac2:rgba(62,207,142,.15);
+  --rd:#f55;--rd2:rgba(255,85,85,.12);
+  --ye:#f5a623;--ye2:rgba(245,166,35,.12);
+  --bl:#5b9cf6;--bl2:rgba(91,156,246,.12);
+  --tx:#f1eefc;--tx1:#a99fc2;--tx2:#6f6685;--tx3:#3a3450;
+  --sidebar:232px;
+  --r:10px;
+  --c-dash:#6366f1;--c-acc:#a855f7;--c-vid:#ec4899;--c-cap:#f59e0b;--c-set:#10b981;
+  --c-au:#fbbf24;--c-al:#38bdf8;
 }
 
-// ─── HELPERS ────────────────────────────────────────────────────
-function parseCookies(req) {
-  const out = {};
-  (req.headers.cookie || '').split(';').forEach(p => {
-    const i = p.indexOf('='); if (i > 0) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
+body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-serif;display:flex;min-height:100vh;font-size:13px;-webkit-font-smoothing:antialiased}
+
+/* AUTH */
+.auth-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
+.auth-screen.hidden{display:none}
+.auth-box{width:100%;max-width:360px;padding:32px}
+.auth-logo{text-align:center;margin-bottom:32px}
+.auth-logo-icon{display:inline-flex;width:44px;height:44px;background:var(--s3);border:1px solid var(--b1);border-radius:12px;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px}
+.auth-logo h1{font-size:20px;font-weight:600;letter-spacing:-.4px;margin-bottom:4px}
+.auth-logo p{font-size:12px;color:var(--tx2)}
+.auth-field{margin-bottom:12px}
+.auth-field label{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px;letter-spacing:.02em}
+.auth-field input{width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s}
+.auth-field input:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.16)}
+.auth-error{padding:9px 12px;border-radius:8px;background:var(--rd2);border:1px solid rgba(255,85,85,.15);color:var(--rd);font-size:12px;margin-bottom:12px;display:none}
+.auth-error.show{display:block}
+.auth-btn{width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Geist',sans-serif;cursor:pointer;transition:all .15s;letter-spacing:-.1px;box-shadow:0 4px 16px -4px rgba(139,92,246,.5)}
+.auth-btn:hover{filter:brightness(1.08);box-shadow:0 6px 20px -4px rgba(139,92,246,.6);transform:translateY(-1px)}
+.auth-btn:disabled{opacity:.4;cursor:wait}
+.auth-switch{text-align:center;margin-top:16px;font-size:12px;color:var(--tx2)}
+.auth-switch a{color:var(--tx1);cursor:pointer;font-weight:500}
+.auth-switch a:hover{color:var(--tx)}
+
+/* APP */
+.app-wrap{display:none;width:100%;min-height:100vh}
+.app-wrap.show{display:flex}
+
+/* SIDEBAR */
+.sidebar{width:var(--sidebar);background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto}
+.sb-header{padding:18px 14px 14px;border-bottom:1px solid var(--b1)}
+.sb-logo{display:flex;align-items:center;gap:9px;margin-bottom:1px}
+.sb-logo-icon{width:28px;height:28px;background:linear-gradient(135deg,#6366f1,#ec4899);border:1px solid var(--b1);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;box-shadow:0 2px 8px rgba(99,102,241,.35)}
+.sb-logo-text{font-size:13px;font-weight:600;letter-spacing:-.3px}
+.sb-sub{font-size:10px;color:var(--tx3);margin-top:2px}
+.sb-nav{padding:8px 6px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:7px 10px 7px 8px;border-radius:7px;cursor:pointer;color:var(--tx2);font-size:12px;font-weight:400;transition:all .12s;margin-bottom:2px;border:none;border-left:2px solid transparent;background:none;width:100%;text-align:left}
+.nav-item:hover{background:var(--p3);color:var(--tx1)}
+.nav-item.act{background:var(--icbg,var(--p3));color:var(--tx);font-weight:600;border-left-color:var(--ic-solid,var(--ac))}
+.nav-item .icon{width:20px;height:20px;text-align:center;font-size:11px;flex-shrink:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--ic,rgba(255,255,255,.06));opacity:.85;transition:transform .12s}
+.nav-item.act .icon{opacity:1}
+.nav-item:hover .icon{transform:scale(1.08)}
+.sb-section-title{font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:var(--tx3);padding:14px 10px 5px;font-weight:600}
+.sb-section-title.gold{color:var(--c-au)}
+
+/* Queue */
+.sb-queue{border-top:1px solid var(--b1);padding:8px 6px}
+.sb-queue-title{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);padding:0 10px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.sb-queue-title span{color:var(--ac);font-size:10px;font-weight:600}
+.queue-item{background:var(--s2);border:1px solid var(--b1);border-radius:8px;padding:10px;margin-bottom:5px;position:relative}
+.queue-item-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;gap:6px}
+.queue-acc{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.queue-pct{font-size:11px;font-weight:600;color:var(--tx1);flex-shrink:0}
+.queue-bar{height:2px;background:var(--b1);border-radius:100px;overflow:hidden;margin-bottom:4px}
+.queue-fill{height:100%;border-radius:100px;transition:width .4s;background:var(--ac)}
+.queue-status{font-size:10px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.queue-status.done{color:var(--ac)}.queue-status.err{color:var(--rd)}
+.queue-file{font-size:10px;color:var(--tx1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;margin-top:1px}
+.queue-errs{font-size:10px;color:var(--ye);margin-top:1px}
+.queue-pct.ok{color:var(--ac)}.queue-pct.er{color:var(--rd)}
+.queue-detail{font-size:10px;color:var(--tx1);margin:3px 0 2px;line-height:1.5}
+.queue-cancel{position:absolute;top:7px;right:7px;background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;opacity:0;transition:opacity .15s}
+.queue-item:hover .queue-cancel{opacity:1}
+.queue-cancel-btn{display:block;width:100%;margin-top:6px;padding:4px;background:none;border:1px solid var(--b2);border-radius:6px;color:var(--tx2);font-size:10px;cursor:pointer;text-align:center;transition:all .15s;font-family:'Geist',sans-serif}
+.queue-cancel-btn:hover{border-color:var(--rd);color:var(--rd)}
+.sb-accounts{border-top:1px solid var(--b1);padding:8px 6px;margin-top:auto}
+.sb-accounts-title{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);padding:0 10px;margin-bottom:7px}
+.sb-acc-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;cursor:pointer;transition:background .1s}
+.sb-acc-item:hover{background:var(--p3)}
+.sb-acc-av{width:22px;height:22px;border-radius:50%;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0}
+.sb-acc-name{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-acc-handle{font-size:10px;color:var(--tx2)}
+.sb-user-box{border-top:1px solid var(--b1);padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
+.sb-user-info{display:flex;align-items:center;gap:8px;min-width:0}
+.sb-user-avatar{width:26px;height:26px;border-radius:7px;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--tx1);flex-shrink:0}
+.sb-user-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-user-role{font-size:10px;color:var(--tx3)}
+.sb-logout{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:13px;padding:4px;border-radius:5px;transition:color .15s}
+.sb-logout:hover{color:var(--rd)}
+
+/* MAIN */
+.main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh;background-image:radial-gradient(circle,rgba(139,92,246,.14) 1px,transparent 1px);background-size:22px 22px}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:13px 24px;border-bottom:1px solid var(--b1);position:sticky;top:0;z-index:50;background:var(--bg)}
+.topbar-title{font-size:14px;font-weight:500;letter-spacing:-.2px}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.page-content{padding:24px;flex:1}
+.panel{display:none}.panel.act{display:block}
+
+/* CARDS */
+.card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:18px;margin-bottom:12px}
+.card-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);margin-bottom:14px}
+
+/* STATS */
+.stat-grid{display:grid;gap:8px;margin-bottom:10px}
+.stat-grid.c4{grid-template-columns:repeat(4,1fr)}.stat-grid.c3{grid-template-columns:repeat(3,1fr)}
+.plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:900px}
+.plan-card{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:22px;position:relative;display:flex;flex-direction:column;transition:transform .15s,box-shadow .15s}
+.plan-card.current{border-color:var(--pc,var(--ac));box-shadow:0 0 0 1px var(--pc,var(--ac))}
+.plan-card:hover{transform:translateY(-2px)}
+.plan-card .plan-badge{position:absolute;top:-10px;left:20px;font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:var(--pc,var(--ac));color:#0d0b13}
+.plan-card .plan-name{font-size:15px;font-weight:700;margin-bottom:2px;display:flex;align-items:center;gap:7px}
+.plan-card .plan-price{font-size:22px;font-weight:700;margin:10px 0 14px;letter-spacing:-.5px}
+.plan-card .plan-price small{font-size:11px;font-weight:400;color:var(--tx2)}
+.plan-card ul{list-style:none;margin:0 0 18px;padding:0;flex:1}
+.plan-card li{font-size:12px;color:var(--tx1);padding:5px 0;display:flex;align-items:center;gap:7px}
+.plan-card li::before{content:'✓';color:var(--pc,var(--ac));font-weight:700}
+.stat-box{position:relative;background:var(--s1);border:1px solid var(--b1);border-top:2px solid var(--st-c,var(--b1));border-radius:var(--r);padding:16px 18px;transition:transform .15s,box-shadow .15s,border-color .15s;overflow:hidden}
+.stat-box:hover{transform:translateY(-2px);border-color:var(--b2);box-shadow:0 8px 22px -10px var(--st-sh,rgba(0,0,0,.5))}
+.stat-num{font-size:24px;font-weight:600;line-height:1;margin-bottom:3px;letter-spacing:-.5px}
+.stat-lbl{font-size:10px;color:var(--tx2)}
+.stat-icon{position:absolute;top:13px;right:13px;width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;background:var(--st-bg,var(--s3))}
+.c-p{color:var(--tx)}.c-g{color:var(--ac)}.c-y{color:var(--ye)}.c-r{color:var(--rd)}.c-b{color:var(--bl)}
+
+/* ACCOUNTS */
+.acc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.acc-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:16px}
+.acc-card:hover{border-color:var(--b2)}
+.acc-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.acc-card-left{display:flex;align-items:center;gap:10px}
+.acc-avatar{width:36px;height:36px;border-radius:50%;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.acc-username{font-size:13px;font-weight:500;margin-bottom:3px;letter-spacing:-.2px}
+.acc-badge{display:inline-flex;align-items:center;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;letter-spacing:.2px}
+.acc-badge.custom{background:var(--s3);color:var(--tx2);border:1px solid var(--b1)}
+.acc-badge.intel{background:var(--ac2);color:var(--ac)}
+.acc-status{font-size:10px;color:var(--ac);font-weight:500;margin-top:2px}
+.acc-card-actions{display:flex;gap:3px}
+.acc-card-actions button{background:none;border:none;color:var(--tx3);cursor:pointer;padding:5px;border-radius:6px;font-size:13px;transition:all .1s;width:27px;height:27px;display:flex;align-items:center;justify-content:center}
+.acc-card-actions button:hover{background:var(--s3);color:var(--tx1)}
+.acc-card-actions button.del:hover{background:var(--rd2);color:var(--rd)}
+.acc-info-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--b1)}
+.acc-info-row:last-child{border-bottom:none}
+.acc-info-lbl{font-size:11px;color:var(--tx2)}
+.acc-info-val{font-size:11px;font-weight:500;color:var(--tx1)}
+
+/* VIDEOS */
+.videos-toolbar{display:flex;align-items:center;gap:7px;margin-bottom:12px;flex-wrap:wrap}
+.filter-tabs{display:flex;gap:2px;background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:3px}
+.tab{padding:5px 11px;border-radius:5px;border:none;background:none;color:var(--tx2);font-size:12px;font-weight:400;cursor:pointer;transition:all .1s;white-space:nowrap;font-family:'Geist',sans-serif}
+.tab.act{background:var(--s3);color:var(--tx);font-weight:500}
+.tab:hover:not(.act){color:var(--tx1)}
+.video-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--s1);border:1px solid var(--b1);border-left:3px solid var(--vi-state,var(--b1));border-radius:8px;margin-bottom:5px;gap:10px;transition:border-color .12s,box-shadow .12s}
+.video-item:hover{border-color:var(--b2);box-shadow:0 3px 14px -6px var(--vi-state-sh,rgba(0,0,0,.3))}
+.video-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.video-icon{width:26px;height:26px;border-radius:8px;font-size:13px;flex-shrink:0;background:var(--ic-bg,var(--s3));display:inline-flex;align-items:center;justify-content:center}
+.video-name{font-size:12px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:1px}
+.video-account{font-size:10px;color:var(--tx3)}
+.video-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.video-date{font-size:10px;color:var(--tx2);margin-top:1px;text-align:right}
+.video-actions{display:flex;gap:3px}
+
+/* BUTTONS */
+.icon-btn{background:none;border:1px solid var(--b1);color:var(--tx3);cursor:pointer;width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;transition:all .1s;font-family:'Geist',sans-serif}
+.icon-btn:hover{border-color:var(--b2);color:var(--tx1);background:var(--s2)}
+.icon-btn.danger:hover{background:var(--rd2);border-color:rgba(255,85,85,.2);color:var(--rd)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:7px;border:none;font-family:'Geist',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;letter-spacing:-.1px}
+.btn-p{background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);color:#fff;box-shadow:0 2px 10px -2px rgba(139,92,246,.5)}
+.btn-p:hover{filter:brightness(1.08);box-shadow:0 4px 16px -2px rgba(139,92,246,.65);transform:translateY(-1px)}
+.btn-p:active{transform:translateY(0)}
+.btn-g{background:transparent;color:var(--tx1);border:1px solid var(--b1)}.btn-g:hover{background:var(--s2);border-color:#8b5cf6;color:var(--tx)}
+.btn-d{background:linear-gradient(135deg,var(--rd2),rgba(255,85,85,.2));color:var(--rd);border:1px solid rgba(255,85,85,.25)}.btn-d:hover{background:rgba(255,85,85,.22);box-shadow:0 2px 10px -3px rgba(255,85,85,.4)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important;box-shadow:none!important}
+.btn-row{display:flex;gap:7px;justify-content:flex-end;margin-top:14px}
+
+/* FORMS */
+.field{margin-bottom:12px}.field:last-child{margin-bottom:0}
+label{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:4px}
+input,textarea,select{width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:8px 11px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,textarea:focus,select:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.16)}
+select option{background:var(--s2)}
+textarea{resize:vertical;min-height:60px;line-height:1.5}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.hint{font-size:11px;color:var(--tx3);margin-top:3px;line-height:1.4}
+
+/* MODALS */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-bg.open{display:flex}
+.modal{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:24px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;position:relative}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:16px;letter-spacing:-.2px}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--tx3);font-size:15px;cursor:pointer;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:5px;transition:all .1s}
+.modal-close:hover{color:var(--tx1);background:var(--s3)}
+.upload-modal{max-width:540px}
+.drop-area{border:1px dashed var(--b2);border-radius:9px;padding:28px 20px;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg)}
+.drop-area:hover,.drop-area.over{border-color:var(--b2);background:var(--s2)}
+.drop-area .drop-icon{font-size:28px;margin-bottom:8px;opacity:.5}
+.drop-area h4{font-size:13px;font-weight:500;margin-bottom:3px}
+.drop-area p{font-size:11px;color:var(--tx2)}
+.drop-area .link{color:var(--tx1);text-decoration:underline}
+#videoFileInput{display:none}
+.mode-selector{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+.mode-opt{border:1px solid var(--b1);border-radius:8px;padding:10px;cursor:pointer;transition:all .1s;text-align:center}
+.mode-opt:hover{border-color:var(--b2)}
+.mode-opt.sel{border-color:var(--b2);background:var(--s3)}
+.mode-opt h5{font-size:12px;font-weight:500;margin-bottom:2px}
+.mode-opt p{font-size:10px;color:var(--tx2)}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:100px;font-size:10px;font-weight:600;letter-spacing:.1px}
+.b-pend{background:var(--ye2);color:var(--ye)}
+.b-proc{background:var(--bl2);color:var(--bl)}
+.b-post{background:var(--ac2);color:var(--ac)}
+.b-erro{background:var(--rd2);color:var(--rd)}
+.b-canc{background:var(--s3);color:var(--tx3)}
+
+/* PROGRESS */
+.video-progress{margin-top:5px;height:3px;background:var(--b1);border-radius:100px;overflow:hidden}
+.video-progress-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--bl),#a855f7);transition:width .5s;animation:progpulse 1.5s ease-in-out infinite}
+@keyframes progpulse{0%,100%{opacity:1}50%{opacity:.4}}
+.video-proc-msg{font-size:10px;color:var(--bl);margin-top:2px}
+.post-progress{margin-top:5px;height:2px;background:var(--b1);border-radius:100px;overflow:hidden}
+.post-progress-fill{height:100%;background:var(--bl);border-radius:100px;transition:width .6s}
+.post-progress-msg{font-size:9px;color:var(--bl);margin-top:2px}
+
+/* TOASTS */
+.toasts{position:fixed;bottom:16px;right:16px;display:flex;flex-direction:column;gap:6px;z-index:9999}
+.toast{background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:10px 13px;font-size:12px;max-width:280px;animation:tin .18s ease;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+@keyframes tin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.toast.ok{border-left:2px solid var(--ac)}
+.toast.er{border-left:2px solid var(--rd)}
+.toast.in{border-left:2px solid var(--bl)}
+.toast.wa{border-left:2px solid var(--ye)}
+
+/* MISC */
+.spin{width:12px;height:12px;border:1.5px solid rgba(255,255,255,.15);border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:40px 20px;color:var(--tx2)}
+.empty-icon{font-size:28px;margin-bottom:8px;opacity:.2}
+.empty p{font-size:12px;color:var(--tx3)}
+.info-box{padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.7;margin-bottom:12px}
+.info-box.gr{background:var(--ac2);border:1px solid rgba(62,207,142,.15);color:var(--ac)}
+.info-box.bl{background:var(--bl2);border:1px solid rgba(91,156,246,.15);color:var(--bl)}
+.info-box.ye{background:var(--ye2);border:1px solid rgba(245,166,35,.15);color:var(--ye)}
+
+/* ADMIN */
+.admin-user-row{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--s1);border:1px solid var(--b1);border-radius:9px;margin-bottom:6px;gap:10px;flex-wrap:wrap}
+.admin-user-row:hover{border-color:var(--b2)}
+.admin-user-left{display:flex;align-items:center;gap:9px;min-width:0}
+.admin-user-av{width:30px;height:30px;border-radius:7px;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--tx1);flex-shrink:0}
+.admin-user-name{font-size:13px;font-weight:500}
+.admin-user-email{font-size:11px;color:var(--tx3)}
+.admin-user-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.admin-user-right select{width:auto;padding:4px 8px;font-size:11px}
+@media(max-width:900px){.acc-grid{grid-template-columns:1fr 1fr}.stat-grid.c4{grid-template-columns:1fr 1fr}.plans-grid{grid-template-columns:1fr}}
+
+/* DASHBOARD */
+.dash-acc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:4px}
+.dash-acc-card{background:var(--s1);border:1px solid var(--b1);border-left:3px solid var(--acc-state,var(--ac));border-radius:var(--r);padding:15px;transition:box-shadow .15s,border-color .15s}
+.dash-acc-card:hover{border-color:var(--b2);box-shadow:0 4px 18px -6px var(--acc-state-sh,rgba(62,207,142,.25))}
+.dash-acc-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.dash-acc-av-ring{width:34px;height:34px;border-radius:50%;background:conic-gradient(from 210deg,#f59e0b,#ec4899,#a855f7,#6366f1,#f59e0b);display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:2px}
+.dash-acc-av{width:100%;height:100%;border-radius:50%;background:var(--s1);border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-size:13px}
+.dash-acc-name{font-size:13px;font-weight:500;letter-spacing:-.2px;display:flex;align-items:center;gap:6px}
+.dash-acc-sub{font-size:10px;color:var(--tx3);margin-top:1px}
+.dash-status-pill{font-size:9px;font-weight:600;padding:2px 7px;border-radius:100px;display:inline-flex;align-items:center;gap:4px;flex-shrink:0}
+.dash-status-pill.on{background:rgba(62,207,142,.14);color:var(--ac)}
+.dash-status-pill.off{background:rgba(255,255,255,.06);color:var(--tx3)}
+.dash-status-pill.warn{background:rgba(255,85,85,.14);color:var(--rd)}
+.dash-status-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.dash-acc-bars{display:flex;flex-direction:column;gap:5px}
+.dash-bar-row{display:flex;align-items:center;gap:7px}
+.dash-bar-lbl{font-size:10px;color:var(--tx2);width:65px;flex-shrink:0}
+.dash-bar-track{flex:1;height:4px;background:var(--bg);border-radius:100px;overflow:hidden}
+.dash-bar-fill{height:100%;border-radius:100px;transition:width .4s}
+.dash-bar-val{font-size:10px;font-weight:500;width:26px;text-align:right;flex-shrink:0}
+.dash-acc-next{margin-top:9px;padding-top:8px;border-top:1px solid var(--b1);font-size:10px;color:var(--tx2)}
+.dash-acc-next span{color:var(--tx1);font-weight:500}
+.dash-acc-times{margin-top:8px;padding-top:8px;border-top:1px solid var(--b1)}
+.dash-acc-time-row{display:flex;justify-content:space-between;align-items:center;font-size:10px;padding:2px 0}
+.dash-time-lbl{color:var(--tx3)}
+.dash-time-val{color:var(--tx1);font-weight:500}
+.dash-daily{margin-top:8px;padding-top:8px;border-top:1px solid var(--b1)}
+.dash-daily-title{font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx3);margin-bottom:5px}
+.dash-daily-grid{display:flex;flex-direction:column;gap:3px;max-height:120px;overflow-y:auto}
+.dash-daily-row{display:flex;align-items:center;gap:6px;font-size:10px}
+.dash-daily-date{color:var(--tx2);width:72px;flex-shrink:0}
+.dash-daily-bar{flex:1;height:3px;background:var(--bg);border-radius:100px;overflow:hidden}
+.dash-daily-fill{height:100%;background:var(--tx3);border-radius:100px}
+.dash-daily-cnt{color:var(--tx2);font-weight:500;width:22px;text-align:right;flex-shrink:0}
+
+/* CATEGORIES */
+.cat-tag{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:4px;font-size:9px;font-weight:600;white-space:nowrap;letter-spacing:.2px}
+.cat-list{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.cat-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:7px}
+.cat-item:hover{border-color:var(--b2)}
+.cat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.cat-name{flex:1;font-size:12px;font-weight:400}
+.cat-actions{display:flex;gap:3px}
+
+/* PRESETS */
+.preset-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;cursor:pointer;transition:border-color .1s;margin-bottom:5px}
+.preset-item:hover{border-color:var(--b2)}
+.preset-item.sel{border-color:var(--b2);background:var(--s3)}
+.preset-name{font-size:12px;font-weight:500;flex:1}
+.preset-prev{font-size:10px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+
+/* ADMIN BADGES */
+.admin-ustat{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500;display:inline-block;margin-right:3px;margin-top:3px}
+.admin-ustat.accs{background:var(--s3);color:var(--tx1)}
+.admin-ustat.posted{background:var(--ac2);color:var(--ac)}
+.admin-ustat.pend{background:var(--ye2);color:var(--ye)}
+.admin-ustat.err{background:var(--rd2);color:var(--rd)}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:100px}
+::selection{background:rgba(255,255,255,.1)}
+</style>
+</head>
+<body>
+<div class="toasts" id="TC"></div>
+
+<!-- ═══════════════════════════════════════════
+     AUTH SCREEN (LOGIN / SIGNUP)
+     ═══════════════════════════════════════════ -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box">
+    <!-- LOGIN -->
+    <div id="authLogin">
+      <div class="auth-logo">
+        <div class="auth-logo-icon">✂️</div>
+        <h1>AspaTools</h1>
+        <p>Entre na sua conta</p>
+      </div>
+      <div class="auth-error" id="loginError"></div>
+      <div class="auth-field"><label>E-mail</label><input type="email" id="loginEmail" placeholder="seu@email.com"></div>
+      <div class="auth-field"><label>Senha</label><input type="password" id="loginPass" placeholder="••••••••"></div>
+      <button class="auth-btn" id="loginBtn" onclick="doLogin()">Entrar</button>
+      <div class="auth-switch">Não tem conta? <a onclick="showSignup()">Criar conta</a></div>
+    </div>
+    <!-- SIGNUP -->
+    <div id="authSignup" style="display:none">
+      <div class="auth-logo">
+        <div class="auth-logo-icon">✂️</div>
+        <h1>Criar Conta</h1>
+        <p>Comece a usar o AspaTools</p>
+      </div>
+      <div class="auth-error" id="signupError"></div>
+      <div class="auth-field"><label>Nome</label><input type="text" id="signupName" placeholder="Seu nome"></div>
+      <div class="auth-field"><label>E-mail</label><input type="email" id="signupEmail" placeholder="seu@email.com"></div>
+      <div class="auth-field"><label>Senha</label><input type="password" id="signupPass" placeholder="Mínimo 6 caracteres"></div>
+      <div class="auth-field"><label>Confirmar Senha</label><input type="password" id="signupPass2" placeholder="Repita a senha"></div>
+      <button class="auth-btn" id="signupBtn" onclick="doSignup()">Criar conta</button>
+      <div class="auth-switch">Já tem conta? <a onclick="showLogin()">Entrar</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     APP (só aparece após login)
+     ═══════════════════════════════════════════ -->
+<div class="app-wrap" id="appWrap">
+
+<!-- MODAL: Add Account -->
+<div class="modal-bg" id="modalAddAcc">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalAddAcc')">✕</button>
+    <h3>Adicionar Conta Instagram</h3>
+    <div class="field"><label>Access Token</label><textarea id="aa-token" rows="3" placeholder="Token IGAAh... gerado em Facebook Developers → API setup with Instagram → Generate token"></textarea></div>
+    <div class="field"><label>Label (apelido opcional)</label><input id="aa-label" placeholder="Ex: Futebol, Conta Principal..."></div>
+    <div class="field"><label>Categoria</label><select id="aa-cat"><option value="">Sem categoria</option></select></div>
+    <div class="field"><label>Vídeos por dia <span style="color:var(--tx3)">(máx 50)</span></label><input type="number" id="aa-ppd" value="40" min="1" max="50" oninput="updateIntervalPreview()"></div>
+    <div class="r2">
+      <div class="field"><label>Início da janela</label><input type="time" id="aa-st" value="02:00" oninput="updateIntervalPreview()"></div>
+      <div class="field"><label>Fim da janela</label><input type="time" id="aa-et" value="23:00" oninput="updateIntervalPreview()"></div>
+    </div>
+    <div class="field">
+      <div class="mode-selector">
+        <div class="mode-opt sel" id="mode-intel" onclick="selMode('inteligente')"><h5>⚡ Inteligente</h5><p>Intervalo calculado auto</p></div>
+        <div class="mode-opt" id="mode-manual" onclick="selMode('manual')"><h5>⚙️ Manual</h5><p>Controle total</p></div>
+      </div>
+      <div id="intervalPreview" class="info-box bl" style="margin-bottom:0"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-g" onclick="closeModal('modalAddAcc')">Cancelar</button>
+      <button class="btn btn-p" id="addAccBtn" onclick="addAccount()">✅ Verificar e adicionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Upload -->
+<div class="modal-bg" id="modalUpload">
+  <div class="modal upload-modal">
+    <button class="modal-close" onclick="closeModal('modalUpload')">✕</button>
+    <h3>Upload de Vídeos</h3>
+    <div class="field"><label>Conta do Instagram</label><select id="up-acc"></select></div>
+    <div class="field"><label>Nome do Lote (opcional)</label><input id="up-batch" placeholder="Ex: Vídeos de Janeiro"></div>
+    <div class="field">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <label style="margin-bottom:0">Legenda pré-definida</label>
+        <a style="font-size:11px;color:var(--p2);cursor:pointer" onclick="closeModal('modalUpload');nav('captions')">⚙️ Gerenciar</a>
+      </div>
+      <div id="up-presets"></div>
+    </div>
+    <div class="r2">
+      <div class="field"><label>Legenda</label><textarea id="up-cap" placeholder="Legenda para todos os vídeos..."></textarea></div>
+      <div class="field"><label>Hashtags</label><textarea id="up-hash" placeholder="reels instagram viral fyp"></textarea><div class="hint">Com ou sem #</div></div>
+    </div>
+    <div class="field">
+      <label>Número de Ciclos</label>
+      <select id="up-cycles"><option value="1">1 ciclo (padrão)</option><option value="2">2 ciclos</option><option value="3">3 ciclos</option><option value="5">5 ciclos</option><option value="10">10 ciclos</option><option value="20">20 ciclos</option><option value="50">50 ciclos</option><option value="100">100 ciclos</option></select>
+    </div>
+    <div class="drop-area" id="dropArea" onclick="document.getElementById('videoFileInput').click()">
+      <div class="drop-icon">⬆️</div><h4>Arraste vídeos ou ZIP aqui</h4><p>ou <span class="link">clique para selecionar</span> · MP4, MOV, AVI, MKV, ZIP</p>
+    </div>
+    <input type="file" id="videoFileInput" multiple accept="video/*,.zip">
+    <div class="info-box gr" style="margin-top:10px;margin-bottom:0">✅ Upload roda em background — feche este modal e inicie outros uploads.</div>
+    <div class="btn-row"><button class="btn btn-g" onclick="closeModal('modalUpload')">Fechar</button></div>
+  </div>
+</div>
+
+<!-- LAYOUT -->
+<aside class="sidebar">
+  <div class="sb-header">
+    <div class="sb-logo"><div class="sb-logo-icon">✂️</div><div class="sb-logo-text">AspaTools</div></div>
+    <div class="sb-sub">Automação de postagens · v4.2</div>
+  </div>
+  <div class="sb-section-title">Principal</div>
+  <nav class="sb-nav">
+    <button class="nav-item act" id="n-dash" onclick="nav('dash')" style="--ic:rgba(99,102,241,.18);--icbg:rgba(99,102,241,.12);--ic-solid:var(--c-dash)"><span class="icon">📊</span> Dashboard</button>
+    <button class="nav-item" id="n-accounts" onclick="nav('accounts')" style="--ic:rgba(168,85,247,.18);--icbg:rgba(168,85,247,.12);--ic-solid:var(--c-acc)"><span class="icon">📱</span> Configurar contas</button>
+    <button class="nav-item" id="n-videos" onclick="nav('videos')" style="--ic:rgba(236,72,153,.18);--icbg:rgba(236,72,153,.12);--ic-solid:var(--c-vid)"><span class="icon">🎬</span> Postar vídeos</button>
+    <button class="nav-item" id="n-captions" onclick="nav('captions')" style="--ic:rgba(245,158,11,.18);--icbg:rgba(245,158,11,.12);--ic-solid:var(--c-cap)"><span class="icon">💬</span> Legendas</button>
+    <button class="nav-item" id="n-plans" onclick="nav('plans')" style="--ic:rgba(236,180,60,.18);--icbg:rgba(236,180,60,.12);--ic-solid:#ecb43c"><span class="icon">💎</span> Planos</button>
+    <button class="nav-item" id="n-settings" onclick="nav('settings')" style="display:none;--ic:rgba(16,185,129,.18);--icbg:rgba(16,185,129,.12);--ic-solid:var(--c-set)"><span class="icon">⚙️</span> Configurações</button>
+  </nav>
+  <!-- ADMIN NAV (só aparece para admins) -->
+  <div id="adminNav" style="display:none">
+    <div class="sb-section-title gold">🔒 Administrador</div>
+    <nav style="padding:0 8px 8px">
+      <button class="nav-item" id="n-admin-users" onclick="nav('admin-users')" style="--ic:rgba(251,191,36,.18);--icbg:rgba(251,191,36,.12);--ic-solid:var(--c-au)"><span class="icon">👥</span> Contas de usuários</button>
+      <button class="nav-item" id="n-admin-activity" onclick="nav('admin-activity')" style="--ic:rgba(56,189,248,.18);--icbg:rgba(56,189,248,.12);--ic-solid:var(--c-al)"><span class="icon">📋</span> Log de atividades</button>
+    </nav>
+  </div>
+  <div class="sb-queue" id="sbQueue" style="display:none">
+    <div class="sb-queue-title">⬆ Uploads <span id="queueCount">0</span></div>
+    <div id="queueList"></div>
+  </div>
+  <div class="sb-accounts">
+    <div class="sb-accounts-title">Contas Instagram</div>
+    <div id="sbAccsList"></div>
+    <button class="nav-item" style="margin-top:4px" onclick="openModal('modalAddAcc')"><span class="icon">➕</span> Adicionar conta</button>
+  </div>
+  <!-- USER BOX -->
+  <div class="sb-user-box">
+    <div class="sb-user-info">
+      <div class="sb-user-avatar" id="sbUserAvatar">A</div>
+      <div style="min-width:0"><div class="sb-user-name" id="sbUserName">Admin</div><div class="sb-user-role" id="sbUserRole">admin</div></div>
+    </div>
+    <button class="sb-logout" onclick="doLogout()" title="Sair">🚪</button>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="pageTitle">Dashboard</div>
+    <div class="topbar-right">
+      <span id="topbarDate" style="font-size:11px;color:var(--tx3)"></span>
+      <button class="btn btn-p btn-sm" onclick="openUpload()">⬆ Upload</button>
+      <button class="btn btn-sm btn-g" onclick="refreshAll()">🔄</button>
+    </div>
+  </div>
+  <div class="page-content">
+    <!-- DASHBOARD --><div class="panel act" id="panel-dash">
+      <div class="stat-grid c4">
+        <div class="stat-box" style="--st-c:#6366f1;--st-sh:rgba(99,102,241,.3)"><span class="stat-icon" style="--st-bg:rgba(99,102,241,.16)">📦</span><div class="stat-num c-p" id="ds-total">0</div><div class="stat-lbl">Total de vídeos</div></div>
+        <div class="stat-box" style="--st-c:var(--ac);--st-sh:rgba(62,207,142,.3)"><span class="stat-icon" style="--st-bg:var(--ac2)">✅</span><div class="stat-num c-g" id="ds-posted">0</div><div class="stat-lbl">Postados</div></div>
+        <div class="stat-box" style="--st-c:var(--ye);--st-sh:rgba(245,166,35,.3)"><span class="stat-icon" style="--st-bg:var(--ye2)">⏰</span><div class="stat-num c-y" id="ds-pending">0</div><div class="stat-lbl">Pendentes</div></div>
+        <div class="stat-box" style="--st-c:var(--rd);--st-sh:rgba(255,85,85,.3)"><span class="stat-icon" style="--st-bg:var(--rd2)">❌</span><div class="stat-num c-r" id="ds-error">0</div><div class="stat-lbl">Erros</div></div>
+      </div>
+      <div class="stat-grid c3">
+        <div class="stat-box" style="--st-c:#a855f7;--st-sh:rgba(168,85,247,.3)"><span class="stat-icon" style="--st-bg:rgba(168,85,247,.16)">📱</span><div class="stat-num c-p" id="ds-accs">0</div><div class="stat-lbl">Contas ativas</div></div>
+        <div class="stat-box" style="--st-c:var(--bl);--st-sh:rgba(91,156,246,.3)"><span class="stat-icon" style="--st-bg:var(--bl2)">🔄</span><div class="stat-num c-b" id="ds-proc">0</div><div class="stat-lbl">Jobs ativos</div></div>
+        <div class="stat-box" style="--st-c:#ec4899;--st-sh:rgba(236,72,153,.3)"><span class="stat-icon" style="--st-bg:rgba(236,72,153,.16)">🎬</span><div class="stat-num c-g" id="ds-today">0</div><div class="stat-lbl">Postados hoje</div></div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:-.1px">Status por conta</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="dashCatFilter" onchange="loadDash()" style="font-size:11px;padding:4px 10px;border-radius:8px;border:1px solid var(--b1);background:var(--s2);color:var(--tx1);height:30px;outline:none;font-family:'DM Sans',sans-serif"><option value="all">Todas categorias</option></select>
+            <button class="btn btn-sm btn-g" onclick="loadDash()" style="font-size:10px;padding:3px 8px">🔄</button>
+          </div>
+        </div>
+        <div id="dashAccStats"><div class="empty"><div class="empty-icon">📊</div><p>Carregando...</p></div></div>
+      </div>
+      <div class="card"><div class="card-title">Próximas postagens</div><div id="dashNextList"></div></div>
+    </div>
+    <!-- ACCOUNTS --><div class="panel" id="panel-accounts">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <div class="card" style="flex:1;min-width:260px;margin:0">
+          <div class="card-title" style="margin-bottom:8px">🏷️ Categorias</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            <input id="cat-name-input" placeholder="Nova categoria..." style="flex:1;font-size:12px">
+            <input type="color" id="cat-color-input" value="#6c63ff" style="width:34px;height:34px;padding:2px;border-radius:6px;border:1px solid var(--b2);background:var(--b1);cursor:pointer;flex-shrink:0">
+            <button class="btn btn-p btn-sm" onclick="createCategory()">➕</button>
+          </div>
+          <div class="cat-list" id="catList"></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;padding-top:4px">
+          <button class="btn btn-p btn-sm" onclick="openModal('modalAddAcc')">➕ Adicionar conta</button>
+        </div>
+      </div>
+      <div class="acc-grid" id="accGrid"><div class="empty" style="grid-column:1/-1"><div class="empty-icon">📱</div><p>Nenhuma conta</p></div></div>
+    </div>
+    <!-- VIDEOS --><div class="panel" id="panel-videos">
+      <div class="videos-toolbar">
+        <div class="filter-tabs">
+          <button class="tab act" onclick="filterTab('todos',this)">Todos (<span id="cnt-todos">0</span>)</button>
+          <button class="tab" onclick="filterTab('pendente',this)">Pendente (<span id="cnt-pendente">0</span>)</button>
+          <button class="tab" onclick="filterTab('processando',this)">Processando (<span id="cnt-processando">0</span>)</button>
+          <button class="tab" onclick="filterTab('postado',this)">Postado (<span id="cnt-postado">0</span>)</button>
+          <button class="tab" onclick="filterTab('erro',this)">Erro (<span id="cnt-erro">0</span>)</button>
+        </div>
+        <select id="catFilter" onchange="loadVideos()" style="width:130px"><option value="all">Todas categorias</option></select><select id="accFilter" onchange="loadVideos()" style="width:180px"><option value="all">Todas as contas</option></select>
+        <input type="date" id="dateFilter" onchange="loadVideos()" style="width:145px">
+        <button class="btn btn-d btn-sm" onclick="cancelPending()" style="margin-left:auto">🗑 Cancelar Pendentes (<span id="pendCount">0</span>)</button>
+      </div>
+      <div id="videosList"></div>
+    </div>
+    <!-- CAPTIONS --><div class="panel" id="panel-captions">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div><h2 style="font-size:18px;font-weight:700">Legendas Pré-definidas</h2><p style="font-size:12px;color:var(--tx3)">Clique numa legenda no upload para preencher automaticamente</p></div>
+        <button class="btn btn-p btn-sm" onclick="openAddCaption()">➕ Nova legenda</button>
+      </div>
+      <div id="captionsList"></div>
+    </div>
+    <!-- PLANS --><div class="panel" id="panel-plans">
+      <div style="margin-bottom:16px"><p style="font-size:12px;color:var(--tx3)" id="planUsageLine">Carregando...</p></div>
+      <div class="plans-grid" id="plansGrid"></div>
+    </div>
+    <!-- SETTINGS --><div class="panel" id="panel-settings">
+      <div id="kirvanoAdminOnly" class="card" style="max-width:620px;margin-bottom:16px;display:none">
+        <div class="card-title">💎 Kirvano (planos e pagamentos)</div>
+        <div class="info-box bl" style="margin-bottom:14px"><strong>Como configurar:</strong><br>1. Copie a URL do webhook abaixo e crie um Webhook na Kirvano (Extensões → Webhooks) apontando pra ela<br>2. Preencha o Product ID de cada plano (aparece na URL do produto/oferta na Kirvano)<br>3. Cole os links de checkout de cada plano (pra aparecer o botão "Assinar")</div>
+        <div class="field"><label>URL do Webhook (configure na Kirvano)</label><input id="kv-webhook" readonly style="opacity:.7;cursor:text" onclick="this.select()"></div>
+        <div class="field"><label>Token do Webhook</label><input id="kv-token" placeholder="Um segredo qualquer, só você e a Kirvano sabem"></div>
+        <div class="r2"><div class="field"><label>Product ID — Plano Pro</label><input id="kv-pid-pro"></div><div class="field"><label>Product ID — Plano Premium</label><input id="kv-pid-premium"></div></div>
+        <div class="r2"><div class="field"><label>Link de Checkout — Pro</label><input id="kv-chk-pro" placeholder="https://pay.kirvano.com/..."></div><div class="field"><label>Link de Checkout — Premium</label><input id="kv-chk-premium" placeholder="https://pay.kirvano.com/..."></div></div>
+        <div class="r2"><div class="field"><label>Preço exibido — Pro</label><input id="kv-price-pro" placeholder="R$ 49,90/mês"></div><div class="field"><label>Preço exibido — Premium</label><input id="kv-price-premium" placeholder="R$ 99,90/mês"></div></div>
+        <div class="r2"><div class="field"><label>Limite de contas — Grátis</label><input id="kv-lim-free" type="number" min="1"></div><div class="field"><label>Limite de contas — Pro</label><input id="kv-lim-pro" type="number" min="1"></div></div>
+        <div class="field" style="max-width:calc(50% - 8px)"><label>Limite de contas — Premium</label><input id="kv-lim-premium" type="number" min="1"></div>
+        <button class="btn btn-p btn-sm" onclick="saveKirvanoSettings()" style="margin-top:6px">💾 Salvar</button>
+      </div>
+      <div id="settingsAdminOnly" class="info-box ye" style="display:none;max-width:620px;margin-bottom:16px">🔒 As configurações de armazenamento são gerenciadas pelo administrador.</div>
+      <div id="settingsForm" class="card" style="max-width:620px">
+        <div class="card-title">🟠 Cloudflare R2 / Backblaze B2</div>
+        <div class="info-box bl" style="margin-bottom:14px"><strong>Como configurar:</strong><br>1. R2 → Create bucket → Settings → S3 API → copie endpoint<br>2. Manage API tokens → Create token → copie ID e secret</div>
+        <div class="r2"><div class="field"><label>Key ID</label><input id="b2-kid"></div><div class="field"><label>Application Key</label><input type="password" id="b2-key"></div></div>
+        <div class="r2"><div class="field"><label>Bucket Name</label><input id="b2-bkt"></div><div class="field"><label>Endpoint S3</label><input id="b2-ep"></div></div>
+        <div class="field"><label>URL Pública</label><input id="b2-pub"><div class="hint">Formato: https://pub-xxx.r2.dev</div></div>
+        <button class="btn btn-p btn-sm" onclick="saveSettings()">💾 Salvar</button>
+      </div>
+
+    </div>
+    <!-- ADMIN: USERS --><div class="panel" id="panel-admin-users">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div><h2 style="font-size:18px;font-weight:700">Gerenciar Usuários</h2><p style="font-size:12px;color:var(--tx3)" id="adminUserCount">0 usuários</p></div>
+      </div>
+      <div class="stat-grid c4" id="adminStats" style="margin-bottom:16px"></div>
+      <div style="margin-bottom:12px"><input type="text" id="adminUserSearch" placeholder="Buscar por nome ou e-mail..." oninput="renderAdminUsers()" style="max-width:350px"></div>
+      <div id="adminUsersList"></div>
+    </div>
+    <!-- ADMIN: ACTIVITY --><div class="panel" id="panel-admin-activity">
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:14px">Log de Atividades</h2>
+      <div id="adminActivityList"></div>
+    </div>
+  </div>
+</div>
+</div><!-- /app-wrap -->
+
+<script>
+// ═══ GLOBALS ═══
+let authToken = localStorage.getItem('ct_token') || '';
+let currentUser = null;
+let accounts = [];
+let currentStatus = 'todos';
+let currentMode = 'inteligente';
+let uploadQueue = [];
+let categories = [];
+let allAdminUsers = [];
+let captionPresets = [];
+let editingCaptionId = null;
+
+// ═══ AUTH HELPERS ═══
+function api(url, opts = {}) {
+  if (!opts.headers) opts.headers = {};
+  if (authToken) opts.headers['Authorization'] = 'Bearer ' + authToken;
+  if (opts.body && typeof opts.body === 'string') opts.headers['Content-Type'] = 'application/json';
+  return fetch(url, opts).then(async r => {
+    if (r.status === 401) { doLogout(); throw new Error('Sessão expirada'); }
+    return r.json();
   });
-  return out;
 }
 
-function userJson(u) {
-  return { id: u.id, name: u.name, email: u.email, role: u.role, plan: u.plan, planExpiresAt: u.plan_expires_at, status: u.status };
-}
+function showLogin() { document.getElementById('authLogin').style.display = ''; document.getElementById('authSignup').style.display = 'none'; }
+function showSignup() { document.getElementById('authLogin').style.display = 'none'; document.getElementById('authSignup').style.display = ''; }
 
-async function logActivity(user, action, detail) {
-  try { await q(`INSERT INTO activity(user_id,email,action,detail) VALUES($1,$2,$3,$4)`,
-    [user ? user.id : null, user ? user.email : '', action, detail || null]); } catch (e) {}
-}
-
-async function getUserByToken(token) {
-  if (!token) return null;
-  const r = await q(`SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
-                     WHERE s.token = $1 AND s.expires_at > now()`, [token]);
-  const u = r.rows[0];
-  if (!u || u.status === 'suspended') return null;
-  return u;
-}
-
-function tokenFrom(req) {
-  const h = req.headers.authorization || '';
-  if (h.startsWith('Bearer ')) return h.slice(7);
-  return parseCookies(req).ct_token || null;
-}
-
-async function auth(req, res, next) {
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  errEl.classList.remove('show');
+  if (!email || !pass) { errEl.textContent = 'Preencha todos os campos'; errEl.classList.add('show'); return; }
+  const btn = document.getElementById('loginBtn'); btn.disabled = true; btn.textContent = 'Entrando...';
   try {
-    const u = await getUserByToken(tokenFrom(req));
-    if (!u) return res.status(401).json({ error: 'Não autenticado' });
-    req.user = u; next();
-  } catch (e) { res.status(500).json({ error: 'Erro interno' }); }
+    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pass }) }).then(r => r.json());
+    if (r.success) {
+      authToken = r.token; localStorage.setItem('ct_token', authToken); currentUser = r.user;
+      enterApp();
+    } else { errEl.textContent = r.error || 'Erro ao entrar'; errEl.classList.add('show'); }
+  } catch(e) { errEl.textContent = 'Erro de conexão'; errEl.classList.add('show'); }
+  btn.disabled = false; btn.textContent = 'Entrar';
 }
 
-function adminOnly(req, res, next) {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Apenas administradores' });
-  next();
-}
-
-async function createSession(res, userId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  await q(`INSERT INTO sessions(token,user_id,expires_at) VALUES($1,$2,now() + interval '30 days')`, [token, userId]);
-  // Cookie httpOnly em paralelo ao token do localStorage — necessário para o fluxo OAuth da Meta
-  res.setHeader('Set-Cookie', `ct_token=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`);
-  return token;
-}
-
-async function getSettings() {
-  const r = await q(`SELECT key, value FROM settings`);
-  const s = {}; r.rows.forEach(row => s[row.key] = row.value);
-  return s;
-}
-
-function s3From(s) {
-  return new S3Client({
-    region: 'auto',
-    endpoint: s.b2Endpoint,
-    forcePathStyle: true,
-    credentials: { accessKeyId: s.b2KeyId, secretAccessKey: s.b2AppKey }
-  });
-}
-
-function baseUrl(req) {
-  return APP_URL || `${req.protocol}://${req.get('host')}`;
-}
-
-// ─── APP ────────────────────────────────────────────────────────
-const app = express();
-app.set('trust proxy', 1);
-app.use(express.json({ limit: '5mb' }));
-
-// ═══ AUTH ═══════════════════════════════════════════════════════
-app.post('/api/auth/signup', async (req, res) => {
+async function doSignup() {
+  const name = document.getElementById('signupName').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const pass = document.getElementById('signupPass').value;
+  const pass2 = document.getElementById('signupPass2').value;
+  const errEl = document.getElementById('signupError');
+  errEl.classList.remove('show');
+  if (!name || !email || !pass) { errEl.textContent = 'Preencha todos os campos'; errEl.classList.add('show'); return; }
+  if (pass !== pass2) { errEl.textContent = 'Senhas não coincidem'; errEl.classList.add('show'); return; }
+  if (pass.length < 6) { errEl.textContent = 'Senha deve ter no mínimo 6 caracteres'; errEl.classList.add('show'); return; }
+  const btn = document.getElementById('signupBtn'); btn.disabled = true; btn.textContent = 'Criando...';
   try {
-    const { name, email, password } = req.body || {};
-    if (!name || !email || !password) return res.json({ error: 'Preencha todos os campos' });
-    if (password.length < 6) return res.json({ error: 'Senha deve ter no mínimo 6 caracteres' });
-    const em = String(email).trim().toLowerCase();
-    const exists = await q(`SELECT 1 FROM users WHERE email=$1`, [em]);
-    if (exists.rows.length) return res.json({ error: 'E-mail já cadastrado' });
-    const count = await q(`SELECT count(*)::int AS n FROM users`);
-    const role = count.rows[0].n === 0 ? 'admin' : 'user'; // primeiro usuário vira admin
-    const id = uid();
-    const hash = await bcrypt.hash(password, 10);
-    await q(`INSERT INTO users(id,name,email,password_hash,role) VALUES($1,$2,$3,$4,$5)`,
-      [id, String(name).trim(), em, hash, role]);
-    // Se essa pessoa já comprou um plano pela Kirvano antes de se cadastrar, aplica agora
-    const grant = await q(`SELECT plan, expires_at FROM plan_grants WHERE email=$1`, [em]);
-    if (grant.rows.length) {
-      await q(`UPDATE users SET plan=$1, plan_expires_at=$2 WHERE id=$3`,
-        [grant.rows[0].plan, grant.rows[0].expires_at, id]);
+    const r = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pass, name }) }).then(r => r.json());
+    if (r.success) {
+      authToken = r.token; localStorage.setItem('ct_token', authToken); currentUser = r.user;
+      enterApp();
+    } else { errEl.textContent = r.error || 'Erro ao criar conta'; errEl.classList.add('show'); }
+  } catch(e) { errEl.textContent = 'Erro de conexão'; errEl.classList.add('show'); }
+  btn.disabled = false; btn.textContent = 'Criar conta';
+}
+
+function doLogout() {
+  if (authToken) fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + authToken } }).catch(() => {});
+  authToken = ''; localStorage.removeItem('ct_token'); currentUser = null;
+  // Limpar todo estado da sessão
+  accounts = [];
+  categories = [];
+  uploadQueue = [];
+  uploadAbortMap.clear();
+  document.getElementById('sbAccsList').innerHTML = '';
+  document.getElementById('sbQueue').style.display = 'none';
+  document.getElementById('queueList').innerHTML = '';
+  document.getElementById('authScreen').classList.remove('hidden');
+  document.getElementById('appWrap').classList.remove('show');
+}
+
+function enterApp() {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('appWrap').classList.add('show');
+  document.getElementById('sbUserAvatar').textContent = (currentUser.name || 'U')[0].toUpperCase();
+  document.getElementById('sbUserName').textContent = currentUser.name;
+  document.getElementById('sbUserRole').textContent = currentUser.role === 'admin' ? '🔒 Administrador' : 'Usuário';
+  document.getElementById('adminNav').style.display = currentUser.role === 'admin' ? 'block' : 'none';
+  document.getElementById('n-settings').style.display = currentUser.role === 'admin' ? 'flex' : 'none';
+  appInit();
+}
+
+// Enter on password fields
+document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('signupPass2').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
+
+// ═══ CHECK EXISTING SESSION ON LOAD ═══
+async function checkSession() {
+  if (!authToken) return;
+  try {
+    const r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + authToken } }).then(r => r.json());
+    if (r.user) { currentUser = r.user; enterApp(); }
+    else { authToken = ''; localStorage.removeItem('ct_token'); }
+  } catch { authToken = ''; localStorage.removeItem('ct_token'); }
+}
+checkSession();
+if (new URLSearchParams(location.search).get('signup') === '1') showSignup();
+
+// ═══ APP LOGIC (same as before but using api() helper) ═══
+function updateClock(){const n=new Date();document.getElementById('topbarDate').textContent=n.toLocaleDateString('pt-BR')+' '+n.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+updateClock();setInterval(updateClock,1000);
+
+function toast(msg,type='in'){const t=document.createElement('div');t.className=`toast ${type}`;t.textContent=msg;document.getElementById('TC').appendChild(t);setTimeout(()=>t.remove(),4500);}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+const titles={dash:'Dashboard',accounts:'Contas Instagram',videos:'Vídeos',captions:'Legendas Pré-definidas',plans:'Planos',settings:'Configurações','admin-users':'Gerenciar Usuários','admin-activity':'Log de Atividades'};
+function nav(page){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('act'));
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('act'));
+  document.getElementById('panel-'+page).classList.add('act');
+  const navBtn = document.getElementById('n-'+page); if(navBtn) navBtn.classList.add('act');
+  document.getElementById('pageTitle').textContent=titles[page]||page;
+  if(page==='dash'){loadCategories();loadDash();}
+  if(page==='accounts')loadAccounts();
+  if(page==='videos'){populateAccFilter();loadVideos();}
+  if(page==='settings')loadSettings();
+  if(page==='captions'){loadCaptionPresets();}
+  if(page==='plans'){loadPlans();}
+  if(page==='settings'){loadCategories();}
+  if(page==='accounts'){loadCategories();}
+  if(page==='admin-users')loadAdminUsers();
+  if(page==='admin-activity')loadAdminActivity();
+}
+
+// Upload Queue
+function addToQueue(id,accountName,total){uploadQueue.push({id,accountName,total,done:0,status:'uploading',label:'Iniciando...',current:null,errs:0});renderQueue();}
+function updateQueue(id,done,total,label,status,meta){
+  const q=uploadQueue.find(q=>q.id===id);if(!q)return;
+  q.done=done;q.total=total;q.label=label;
+  if(status)q.status=status;
+  if(meta){if(meta.current)q.current=meta.current;if(meta.error)q.errs=(q.errs||0)+1;}
+  renderQueue();
+}
+function removeFromQueue(id){uploadQueue=uploadQueue.filter(q=>q.id!==id);renderQueue();}
+function renderQueue(){
+  const active=uploadQueue.filter(q=>q.status==='uploading').length;
+  document.getElementById('sbQueue').style.display=uploadQueue.length?'block':'none';
+  document.getElementById('queueCount').textContent=active||'';
+  document.getElementById('queueList').innerHTML=uploadQueue.map(q=>{
+    const isDone=q.status==='done',isErr=q.status==='error',isCancelled=q.status==='cancelled';
+    const isActive=q.status==='uploading';
+    const hasErrs=(q.errs||0)>0;
+    // Progresso em bytes (suave) ou fallback por arquivos
+    let pct=0;
+    if(isDone||isErr||isCancelled){pct=100;}
+    else if(q.totalBytes>0){pct=Math.min(99,Math.round(q.bytesLoaded/q.totalBytes*100));}
+    else if(q.total>0){pct=Math.round(q.done/q.total*100);}
+    const fill=isErr?'linear-gradient(90deg,#c22,var(--rd))':isCancelled?'var(--tx3)':isDone?(hasErrs?'linear-gradient(90deg,#d6820f,var(--ye))':'linear-gradient(90deg,#0ea86f,var(--ac))'):'linear-gradient(90deg,#6366f1,#a855f7,#ec4899)';
+    const pctLabel=isDone?(hasErrs?'⚠ '+q.errs+' erro(s)':'✓'):isErr?'✗':isCancelled?'—':(pct+'%');
+    // Linha de detalhe: arquivo atual + velocidade + arquivos concluídos
+    let detailLine='';
+    if(isActive){
+      const fileLine=q.activeFiles&&q.activeFiles.length
+        ?q.activeFiles.map(f=>`↑ ${f.name} (${f.pct}%)`).join(' · ')
+        :'';
+      const doneOf=q.total>0?`${q.done}/${q.total} arquivos`:'Enviando...';
+      const mbDone=q.totalBytes>0?((q.bytesLoaded||0)/1024/1024).toFixed(0)+'/'+(q.totalBytes/1024/1024).toFixed(0)+'MB':'';
+      detailLine=`<div class="queue-detail">${doneOf}${mbDone?' · '+mbDone:''}${fileLine?'<br><span style="color:var(--tx3)">'+fileLine+'</span>':''}</div>`;
     }
-    const u = (await q(`SELECT * FROM users WHERE id=$1`, [id])).rows[0];
-    const token = await createSession(res, id);
-    await logActivity(u, 'signup');
-    res.json({ success: true, token, user: userJson(u) });
-  } catch (e) { console.error(e); res.json({ error: 'Erro ao criar conta' }); }
-});
-
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
-    if (!email || !password) return res.json({ error: 'Preencha todos os campos' });
-    const r = await q(`SELECT * FROM users WHERE email=$1`, [String(email).trim().toLowerCase()]);
-    const u = r.rows[0];
-    if (!u || !(await bcrypt.compare(password, u.password_hash)))
-      return res.json({ error: 'E-mail ou senha incorretos' });
-    if (u.status === 'suspended') return res.json({ error: 'Conta suspensa. Fale com o administrador.' });
-    await q(`UPDATE users SET login_count = login_count + 1 WHERE id=$1`, [u.id]);
-    const token = await createSession(res, u.id);
-    await logActivity(u, 'login');
-    res.json({ success: true, token, user: userJson(u) });
-  } catch (e) { console.error(e); res.json({ error: 'Erro ao entrar' }); }
-});
-
-app.post('/api/auth/logout', async (req, res) => {
-  const t = tokenFrom(req);
-  if (t) await q(`DELETE FROM sessions WHERE token=$1`, [t]).catch(() => {});
-  res.setHeader('Set-Cookie', 'ct_token=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax');
-  res.json({ success: true });
-});
-
-app.get('/api/auth/me', async (req, res) => {
-  const u = await getUserByToken(tokenFrom(req)).catch(() => null);
-  if (!u) return res.json({ user: null });
-  res.json({ user: userJson(u) });
-});
-
-// ═══ OAUTH META (conectar conta Instagram) ══════════════════════
-app.get('/api/auth/facebook', async (req, res) => {
-  try {
-    const u = await getUserByToken(tokenFrom(req));
-    if (!u) return res.json({ error: 'Sessão expirada, faça login novamente' });
-    if (!process.env.META_APP_ID || !process.env.META_APP_SECRET)
-      return res.json({ error: 'META_APP_ID / META_APP_SECRET não configurados no Railway' });
-    const state = crypto.randomBytes(16).toString('hex');
-    await q(`DELETE FROM oauth_states WHERE created_at < now() - interval '15 minutes'`);
-    await q(`INSERT INTO oauth_states(state,user_id) VALUES($1,$2)`, [state, u.id]);
-    const redirect = `${baseUrl(req)}/api/auth/facebook/callback`;
-    const scope = 'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management';
-    const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${process.env.META_APP_ID}` +
-      `&redirect_uri=${encodeURIComponent(redirect)}&state=${state}&response_type=code&scope=${encodeURIComponent(scope)}`;
-    res.json({ url });
-  } catch (e) { console.error(e); res.json({ error: 'Erro ao iniciar conexão' }); }
-});
-
-app.get('/api/auth/facebook/callback', async (req, res) => {
-  try {
-    const { code, state } = req.query;
-    if (!code || !state) return res.redirect('/?fb=cancelled');
-    const st = await q(`DELETE FROM oauth_states WHERE state=$1 RETURNING user_id`, [state]);
-    if (!st.rows.length) return res.redirect('/?fb=invalid_state');
-    const userId = st.rows[0].user_id;
-    const redirect = `${baseUrl(req)}/api/auth/facebook/callback`;
-
-    // 1. Troca code por token
-    let r = await fetch(`${GRAPH}/oauth/access_token?client_id=${process.env.META_APP_ID}` +
-      `&redirect_uri=${encodeURIComponent(redirect)}&client_secret=${process.env.META_APP_SECRET}&code=${code}`)
-      .then(x => x.json());
-    if (r.error) { console.error('FB token:', r.error); return res.redirect('/?fb=token_error'); }
-
-    // 2. Token de longa duração (~60 dias)
-    const ll = await fetch(`${GRAPH}/oauth/access_token?grant_type=fb_exchange_token` +
-      `&client_id=${process.env.META_APP_ID}&client_secret=${process.env.META_APP_SECRET}` +
-      `&fb_exchange_token=${r.access_token}`).then(x => x.json());
-    const userToken = ll.access_token || r.access_token;
-
-    // 3. Páginas + contas Instagram Business vinculadas
-    const pages = await fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}` +
-      `&limit=100&access_token=${userToken}`).then(x => x.json());
-    if (pages.error) { console.error('FB pages:', pages.error); return res.redirect('/?fb=pages_error'); }
-
-    let added = 0, skippedLimit = 0;
-    const limits = await getPlanLimits();
-    const userRow = (await q(`SELECT plan FROM users WHERE id=$1`, [userId])).rows[0];
-    const limit = limits[userRow?.plan] ?? limits.free;
-    let currentCount = (await q(`SELECT COUNT(*)::int AS c FROM accounts WHERE user_id=$1`, [userId])).rows[0].c;
-    for (const p of (pages.data || [])) {
-      const ig = p.instagram_business_account;
-      if (!ig) continue;
-      const existing = await q(`SELECT id FROM accounts WHERE user_id=$1 AND ig_user_id=$2`, [userId, ig.id]);
-      if (existing.rows.length) {
-        await q(`UPDATE accounts SET access_token=$1, username=$2 WHERE id=$3`,
-          [p.access_token, ig.username || p.name, existing.rows[0].id]);
-      } else {
-        if (currentCount >= limit) { skippedLimit++; continue; } // limite do plano atingido — não adiciona novas
-        await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token)
-                 VALUES($1,$2,$3,$4,$5,$6)`,
-          [uid(), userId, ig.username || p.name, p.name, ig.id, p.access_token]);
-        currentCount++;
-      }
-      added++;
-    }
-    res.redirect('/?fb=ok&added=' + added + (skippedLimit ? '&limitReached=' + skippedLimit : ''));
-  } catch (e) { console.error(e); res.redirect('/?fb=error'); }
-});
-
-// ═══ CATEGORIAS ═════════════════════════════════════════════════
-app.get('/api/categories', auth, async (req, res) => {
-  const r = await q(`SELECT id, name, color FROM categories WHERE user_id=$1 ORDER BY name`, [req.user.id]);
-  res.json(r.rows);
-});
-
-app.post('/api/categories', auth, async (req, res) => {
-  const { name, color } = req.body || {};
-  if (!name) return res.json({ error: 'Informe o nome' });
-  const id = uid();
-  await q(`INSERT INTO categories(id,user_id,name,color) VALUES($1,$2,$3,$4)`,
-    [id, req.user.id, String(name).trim(), color || '#7c5cff']);
-  res.json({ success: true, id });
-});
-
-app.put('/api/categories/:id', auth, async (req, res) => {
-  const { name, color } = req.body || {};
-  await q(`UPDATE categories SET name=COALESCE($1,name), color=COALESCE($2,color) WHERE id=$3 AND user_id=$4`,
-    [name || null, color || null, req.params.id, req.user.id]);
-  res.json({ success: true });
-});
-
-app.delete('/api/categories/:id', auth, async (req, res) => {
-  await q(`UPDATE accounts SET category_id=NULL WHERE category_id=$1 AND user_id=$2`, [req.params.id, req.user.id]);
-  await q(`DELETE FROM categories WHERE id=$1 AND user_id=$2`, [req.params.id, req.user.id]);
-  res.json({ success: true });
-});
-
-// ═══ LEGENDAS PRÉ-DEFINIDAS ═════════════════════════════════════
-app.get('/api/captions', auth, async (req, res) => {
-  const r = await q(`SELECT data FROM captions WHERE user_id=$1`, [req.user.id]);
-  res.json(r.rows.length ? r.rows[0].data : []);
-});
-
-app.post('/api/captions', auth, async (req, res) => {
-  const captions = Array.isArray((req.body || {}).captions) ? req.body.captions : [];
-  await q(`INSERT INTO captions(user_id,data) VALUES($1,$2)
-           ON CONFLICT (user_id) DO UPDATE SET data=$2`, [req.user.id, JSON.stringify(captions)]);
-  res.json({ success: true });
-});
-
-// ═══ CONFIGURAÇÕES (storage B2/R2 — admin) ══════════════════════
-const SETTING_KEYS = ['b2KeyId', 'b2AppKey', 'b2Bucket', 'b2Endpoint', 'b2PublicUrl',
-  'kirvanoToken', 'kirvanoProProductId', 'kirvanoPremiumProductId', 'kirvanoCheckoutPro', 'kirvanoCheckoutPremium',
-  'planLimitFree', 'planLimitPro', 'planLimitPremium', 'planPricePro', 'planPricePremium'];
-
-const DEFAULT_PLAN_LIMITS = { free: 1, pro: 5, premium: 20 };
-async function getPlanLimits() {
-  const s = await getSettings();
-  return {
-    free: parseInt(s.planLimitFree) || DEFAULT_PLAN_LIMITS.free,
-    pro: parseInt(s.planLimitPro) || DEFAULT_PLAN_LIMITS.pro,
-    premium: parseInt(s.planLimitPremium) || DEFAULT_PLAN_LIMITS.premium,
-  };
+    const errsLine=hasErrs?`<div class="queue-errs">⚠ ${q.errs} erro(s)</div>`:'';
+    const actions=isActive
+      ?`<button class="queue-cancel-btn" onclick="cancelUpload('${q.id}')">⏹ Cancelar</button>`
+      :`<button class="queue-cancel" onclick="removeFromQueue('${q.id}')">✕</button>`;
+    const statusLabel=isDone||isErr||isCancelled?q.label:'';
+    return `<div class="queue-item">
+      <div class="queue-item-top"><div class="queue-acc">@${q.accountName}</div><div class="queue-pct ${isDone&&!hasErrs?'ok':isErr||hasErrs?'er':''}">${pctLabel}</div></div>
+      <div class="queue-bar"><div class="queue-fill" style="width:${pct}%;background:${fill}"></div></div>
+      ${detailLine}
+      ${statusLabel?`<div class="queue-status ${isDone?'done':isErr||isCancelled?'err':''}">${statusLabel}</div>`:''}
+      ${errsLine}
+      ${actions}
+    </div>`;
+  }).join('');
 }
 
-app.get('/api/settings', auth, async (req, res) => {
-  if (req.user.role !== 'admin') return res.json({});
-  res.json(await getSettings());
-});
+async function openUpload(){
+  if(!accounts.length){toast('Adicione uma conta primeiro','er');openModal('modalAddAcc');return;}
+  const cats=await api('/api/categories').catch(()=>[]);
+  const catMap={}; cats.forEach(c=>catMap[c.id]=c);
+  document.getElementById('up-acc').innerHTML=accounts.map(a=>{
+    const cat=a.categoryId&&catMap[a.categoryId]?catMap[a.categoryId]:null;
+    return '<option value="'+a.id+'">'+(cat?'['+cat.name+'] ':'')+'@'+(a.username||a.label)+'</option>';
+  }).join('');
+  renderUploadPresets();
+  openModal('modalUpload');
+}
+// Caption presets
+async function loadCaptionPresets(){
+  try{captionPresets=await api('/api/captions');}catch(e){captionPresets=[];}
+  renderCaptionsList();
+}
+function renderUploadPresets(){
+  const el=document.getElementById('up-presets');if(!el)return;
+  if(!captionPresets.length){el.innerHTML='<div style="font-size:11px;color:var(--tx3);padding:3px 0">Nenhuma legenda salva. <a style="color:var(--p2);cursor:pointer" onclick="closeModal(&quot;modalUpload&quot;);nav(&quot;captions&quot;)">Criar →</a></div>';return;}
+  el.innerHTML=captionPresets.map(p=>`<div class="preset-item" id="up-preset-${p.id}" onclick="selectPreset('${p.id}')"><span style="font-size:13px">📝</span><div style="min-width:0"><div class="preset-name">${p.name}</div><div class="preset-prev">${(p.caption||'')+(p.hashtags?' · '+p.hashtags:'')}</div></div></div>`).join('');
+}
+function selectPreset(id){
+  const p=captionPresets.find(x=>x.id===id);if(!p)return;
+  document.querySelectorAll('.preset-item').forEach(el=>el.classList.remove('sel'));
+  const el=document.getElementById('up-preset-'+id);if(el)el.classList.add('sel');
+  document.getElementById('up-cap').value=p.caption||'';
+  document.getElementById('up-hash').value=p.hashtags||'';
+}
+function renderCaptionsList(){
+  const el=document.getElementById('captionsList');if(!el)return;
+  if(!captionPresets.length){el.innerHTML='<div class="empty"><div class="empty-icon">💬</div><p>Nenhuma legenda salva ainda. Clique em "Nova legenda" para criar.</p></div>';return;}
+  el.innerHTML=captionPresets.map(p=>`<div class="video-item"><div class="video-left"><span class="video-icon">📝</span><div style="min-width:0"><div class="video-name">${p.name}</div><div class="video-account" style="white-space:normal">${(p.caption||'').slice(0,80)}</div>${p.hashtags?`<div style="font-size:10px;color:var(--p2);margin-top:1px">${p.hashtags.slice(0,60)}</div>`:''}</div></div><div class="video-right"><div class="video-actions"><button class="icon-btn" onclick="editCaption('${p.id}')">✏️</button><button class="icon-btn danger" onclick="deleteCaption('${p.id}')">✕</button></div></div></div>`).join('');
+}
+function openAddCaption(){editingCaptionId=null;document.getElementById('cap-name').value='';document.getElementById('cap-cap').value='';document.getElementById('cap-hash').value='';document.getElementById('capModalTitle').textContent='Nova Legenda';openModal('modalCaption');}
+function editCaption(id){const p=captionPresets.find(x=>x.id===id);if(!p)return;editingCaptionId=id;document.getElementById('cap-name').value=p.name||'';document.getElementById('cap-cap').value=p.caption||'';document.getElementById('cap-hash').value=p.hashtags||'';document.getElementById('capModalTitle').textContent='Editar Legenda';openModal('modalCaption');}
+function deleteCaption(id){if(!confirm('Remover?'))return;captionPresets=captionPresets.filter(p=>p.id!==id);api('/api/captions',{method:'POST',body:JSON.stringify({captions:captionPresets})});renderCaptionsList();toast('Removida','wa');}
+async function saveCaption(){
+  const name=document.getElementById('cap-name').value.trim();
+  const caption=document.getElementById('cap-cap').value.trim();
+  const hashtags=document.getElementById('cap-hash').value.trim();
+  if(!name){toast('Informe um nome','er');return;}
+  if(editingCaptionId){const i=captionPresets.findIndex(p=>p.id===editingCaptionId);if(i>=0)captionPresets[i]={id:editingCaptionId,name,caption,hashtags};}
+  else{captionPresets.push({id:'c_'+Date.now(),name,caption,hashtags});}
+  await api('/api/captions',{method:'POST',body:JSON.stringify({captions:captionPresets})});
+  closeModal('modalCaption');renderCaptionsList();toast('Legenda salva!','ok');
+}
+const dropArea=document.getElementById('dropArea');const vfi=document.getElementById('videoFileInput');
+if(dropArea){
+  dropArea.addEventListener('dragover',e=>{e.preventDefault();dropArea.classList.add('over');});
+  dropArea.addEventListener('dragleave',()=>dropArea.classList.remove('over'));
+  dropArea.addEventListener('drop',e=>{e.preventDefault();dropArea.classList.remove('over');startUpload([...e.dataTransfer.files]);});
+}
+if(vfi){vfi.addEventListener('change',e=>startUpload([...e.target.files]));}
 
-app.post('/api/settings', auth, adminOnly, async (req, res) => {
-  const body = req.body || {};
-  for (const k of SETTING_KEYS) {
-    if (body[k] === undefined) continue;
-    await q(`INSERT INTO settings(key,value) VALUES($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2`,
-      [k, String(body[k])]);
+// Map de AbortControllers por qid para cancelamento
+const uploadAbortMap = new Map();
+
+function startUpload(files){
+  if(!files.length)return;const accId=document.getElementById('up-acc').value;const acc=accounts.find(a=>a.id===accId);
+  if(!accId||!acc){toast('Selecione uma conta','er');return;}
+  const qid='q_'+Date.now();
+  const params={accountId:accId,batchName:document.getElementById('up-batch').value,caption:document.getElementById('up-cap').value,hashtags:document.getElementById('up-hash').value,cycles:document.getElementById('up-cycles').value};
+  closeModal('modalUpload');vfi.value='';addToQueue(qid,acc.username||acc.label,files.length);
+  toast('Upload iniciado para @'+(acc.username||acc.label),'ok');
+  runUploadPresign(qid,files,params,acc);
+}
+
+function cancelUpload(qid){
+  const ctrl=uploadAbortMap.get(qid);
+  if(ctrl){ctrl.abort();uploadAbortMap.delete(qid);}
+  updateQueue(qid,0,0,'Cancelado pelo usuário','cancelled');
+  setTimeout(()=>removeFromQueue(qid),4000);
+}
+
+// Upload direto browser → R2 via presign (sem passar pelo servidor)
+// Mais rápido pois elimina 1 hop: browser → servidor → R2 vira browser → R2
+async function runUploadPresign(qid,files,params,acc){
+  const PARALLEL=6; // direto ao R2: gargalo é só banda upstream do cliente
+  let uploadDone=0,errs=0,cancelled=false;
+  const total=files.length;
+  const ctrl=new AbortController();
+  uploadAbortMap.set(qid,ctrl);
+  const batchId=params.batchName||('b_'+Date.now());
+  const fileArr=[...files].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+  const uploaded=[];
+
+  // Calcular total de bytes para barra suave
+  const totalBytes=fileArr.reduce((s,f)=>s+f.size,0);
+  // bytesPerFile[idx] = bytes enviados desse arquivo até agora
+  const bytesPerFile=new Array(fileArr.length).fill(0);
+  // activeFiles = arquivos enviando agora [{name, pct}]
+  const activeMap=new Map();
+
+  const q=uploadQueue.find(q=>q.id===qid);
+  if(q){q.totalBytes=totalBytes;q.bytesLoaded=0;q.activeFiles=[];}
+  updateQueue(qid,0,total,'Iniciando...','uploading');
+
+  function refreshProgress(){
+    const loaded=bytesPerFile.reduce((s,b)=>s+b,0);
+    const q=uploadQueue.find(q=>q.id===qid);
+    if(q){
+      q.bytesLoaded=loaded;
+      q.done=uploadDone;
+      q.activeFiles=[...activeMap.values()];
+      renderQueue();
+    }
   }
-  res.json({ success: true });
-});
 
-// Catálogo de planos + uso atual — visível para qualquer usuário logado (sem expor segredos de admin)
-app.get('/api/plans', auth, async (req, res) => {
-  const s = await getSettings();
-  const limits = await getPlanLimits();
-  const used = (await q(`SELECT COUNT(*)::int AS c FROM accounts WHERE user_id=$1`, [req.user.id])).rows[0].c;
-  res.json({
-    currentPlan: req.user.plan,
-    planExpiresAt: req.user.plan_expires_at,
-    accountsUsed: used,
-    limits,
-    prices: { pro: s.planPricePro || '', premium: s.planPricePremium || '' },
-    checkout: { pro: s.kirvanoCheckoutPro || null, premium: s.kirvanoCheckoutPremium || null }
-  });
-});
+  async function uploadOne(f,idx,retried=false){
+    if(cancelled||ctrl.signal.aborted)return null;
+    activeMap.set(idx,{name:f.name,pct:0});
+    refreshProgress();
+    try{
+      // 1. Pedir URL presignada ao servidor (request pequeno, ~1ms)
+      const ext=f.name.split('.').pop().toLowerCase();
+      const ct='video/'+ext;
+      const presign=await fetch(
+        `/api/videos/presign?filename=${encodeURIComponent(f.name)}&accountId=${params.accountId}&contentType=${encodeURIComponent(ct)}`,
+        {headers:{'Authorization':'Bearer '+authToken},signal:ctrl.signal}
+      ).then(r=>r.json());
+      if(presign.error)throw new Error(presign.error);
 
-// ═══ WEBHOOK KIRVANO (pagamentos) ═══════════════════════════════
-// Configure em: Kirvano → Extensões → Webhooks → URL = https://SEUDOMINIO/webhooks/kirvano?token=SEU_TOKEN
-// O "token" é definido no painel Configurações > Kirvano, e serve só pra confirmar que a chamada é legítima.
-const KIRVANO_UPGRADE_EVENTS = ['SALE_APPROVED', 'SUBSCRIPTION_RENEWED'];
-const KIRVANO_DOWNGRADE_EVENTS = ['SUBSCRIPTION_CANCELED', 'SUBSCRIPTION_EXPIRED', 'SALE_REFUNDED', 'SALE_CHARGEBACK', 'SALE_REFUSED'];
-
-app.post('/webhooks/kirvano', async (req, res) => {
-  try {
-    const s = await getSettings();
-    const expected = s.kirvanoToken;
-    const got = req.query.token || req.headers['x-webhook-token'] || '';
-    if (expected && got !== expected) return res.status(401).json({ error: 'Token inválido' });
-
-    const body = req.body || {};
-    const event = body.event;
-    const email = String((body.customer && body.customer.email) || '').trim().toLowerCase();
-    if (!email) return res.json({ received: true });
-
-    let newPlan = null, expiresAt = null;
-    if (KIRVANO_UPGRADE_EVENTS.includes(event)) {
-      const ids = (body.products || []).map(p => p.offer_id || p.id).filter(Boolean);
-      if (s.kirvanoPremiumProductId && ids.includes(s.kirvanoPremiumProductId)) newPlan = 'premium';
-      else if (s.kirvanoProProductId && ids.includes(s.kirvanoProProductId)) newPlan = 'pro';
-      if (!newPlan) return res.json({ received: true, note: 'Produto não mapeado a nenhum plano' });
-      expiresAt = (body.plan && body.plan.next_charge_date) || null;
-    } else if (KIRVANO_DOWNGRADE_EVENTS.includes(event)) {
-      newPlan = 'free';
-      expiresAt = null;
-    } else {
-      return res.json({ received: true }); // evento que não altera plano (boleto/pix gerado, carrinho abandonado, etc.)
-    }
-
-    await q(`INSERT INTO plan_grants(email, plan, expires_at, updated_at) VALUES($1,$2,$3,now())
-             ON CONFLICT (email) DO UPDATE SET plan=$2, expires_at=$3, updated_at=now()`,
-      [email, newPlan, expiresAt]);
-
-    const u = await q(`SELECT id FROM users WHERE email=$1`, [email]);
-    if (u.rows.length) {
-      await q(`UPDATE users SET plan=$1, plan_expires_at=$2 WHERE id=$3`, [newPlan, expiresAt, u.rows[0].id]);
-      await logActivity({ id: u.rows[0].id, email }, 'plan_webhook', `${event} -> ${newPlan}`);
-    }
-    res.json({ received: true });
-  } catch (e) {
-    console.error('Webhook Kirvano:', e);
-    res.status(500).json({ error: 'Erro ao processar webhook' });
-  }
-});
-
-// ═══ AGENDAMENTO — helpers ══════════════════════════════════════
-function parseHM(s, defH, defM) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(s || '');
-  return m ? { h: +m[1], m: +m[2] } : { h: defH, m: defM };
-}
-
-function intervalMinutes(acc) {
-  const st = parseHM(acc.start_time, 2, 0), et = parseHM(acc.end_time, 23, 0);
-  const w = Math.max(1, (et.h * 60 + et.m) - (st.h * 60 + st.m));
-  const ppd = Math.max(1, acc.posts_per_day || 40);
-  return ppd > 1 ? Math.floor(w / (ppd - 1)) : w;
-}
-
-// Gera `count` horários dentro da janela da conta, sempre DEPOIS de fromDate
-function computeSlots(acc, count, fromDate) {
-  const st = parseHM(acc.start_time, 2, 0);
-  const ppd = Math.max(1, acc.posts_per_day || 40);
-  const iv = intervalMinutes(acc);
-  const startMin = st.h * 60 + st.m;
-  const slots = [];
-  const day = new Date(fromDate);
-  day.setHours(0, 0, 0, 0);
-  for (let d = 0; d < 730 && slots.length < count; d++) {
-    for (let i = 0; i < ppd && slots.length < count; i++) {
-      const t = new Date(day);
-      t.setMinutes(startMin + i * iv);
-      if (t.getTime() > fromDate.getTime()) slots.push(t);
-    }
-    day.setDate(day.getDate() + 1);
-  }
-  return slots;
-}
-
-function accountJson(a) {
-  return {
-    id: a.id, username: a.username, label: a.label, categoryId: a.category_id,
-    postsPerDay: a.posts_per_day, startTime: a.start_time, endTime: a.end_time,
-    intervalMode: a.interval_mode, intervalMinutes: intervalMinutes(a)
-  };
-}
-
-// ═══ CONTAS ═════════════════════════════════════════════════════
-app.get('/api/accounts', auth, async (req, res) => {
-  const r = await q(`SELECT * FROM accounts WHERE user_id=$1 ORDER BY created_at`, [req.user.id]);
-  res.json(r.rows.map(accountJson));
-});
-
-// Adiciona conta colando o Access Token manualmente (modal "Adicionar Conta Instagram").
-// Suporta os dois tipos de token da Meta:
-//   1) Token do fluxo "Instagram API with Instagram Login" (prefixo IGAA...) — valida em graph.instagram.com/me
-//   2) Token de usuário/página do fluxo antigo "Facebook Login for Business" — valida via me/accounts em graph.facebook.com
-app.post('/api/accounts', auth, async (req, res) => {
-  try {
-    const { accessToken, label, postsPerDay, startTime, endTime, intervalMode, categoryId } = req.body || {};
-    const token = String(accessToken || '').trim();
-    if (!token) return res.json({ error: 'Informe o Access Token' });
-
-    let igUserId, username, pageToken, graphHost;
-
-    if (isIgLoginToken(token)) {
-      // ── Instagram API with Instagram Login (não precisa de Página do Facebook) ──
-      graphHost = IG_LOGIN_GRAPH;
-      const me = await fetch(`${IG_LOGIN_GRAPH}/me?fields=user_id,username&access_token=${encodeURIComponent(token)}`)
-        .then(x => x.json());
-      if (me.error) return res.json({ error: me.error.message || 'Token inválido ou expirado' });
-      igUserId = me.user_id || me.id;
-      username = me.username;
-      pageToken = token;
-    } else {
-      // ── Facebook Login for Business (token precisa ter acesso a uma Página vinculada ao Instagram) ──
-      graphHost = GRAPH;
-      const pages = await fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}` +
-        `&limit=100&access_token=${encodeURIComponent(token)}`).then(x => x.json());
-      if (pages.error) return res.json({ error: pages.error.message || 'Token inválido ou expirado' });
-      const withIg = (pages.data || []).find(p => p.instagram_business_account);
-      if (!withIg) return res.json({
-        error: 'Nenhuma conta Instagram Business/Creator vinculada a esse token. Se você gerou o token pelo fluxo "Instagram Login", ele deve começar com "IGAA".'
+      // 2. PUT direto ao R2 via XHR (progresso real em bytes, sem passar pelo servidor)
+      await new Promise((res,rej)=>{
+        // Checar abort antes de criar o XHR — signal pode já estar abortado
+        if(ctrl.signal.aborted)return rej(new Error('cancelado'));
+        const xhr=new XMLHttpRequest();
+        // onAbortHandler: garante que XHR é abortado mesmo se signal já foi disparado
+        const onAbort=()=>{xhr.abort();rej(new Error('cancelado'));};
+        ctrl.signal.addEventListener('abort',onAbort);
+        xhr.upload.onprogress=e=>{
+          if(!e.lengthComputable)return;
+          bytesPerFile[idx]=e.loaded;
+          activeMap.set(idx,{name:f.name,pct:Math.round(e.loaded/e.total*100)});
+          refreshProgress();
+        };
+        xhr.onload=()=>{
+          ctrl.signal.removeEventListener('abort',onAbort);
+          if(xhr.status>=400){
+            // Log detalhado para debug
+            console.error('[R2 Error]',xhr.status,xhr.responseText.slice(0,300));
+            rej(new Error('R2 '+xhr.status+(xhr.status===403?' (assinatura inválida - tente novamente)':xhr.status===400?' (requisição inválida)':'')));
+          } else res();
+        };
+        xhr.onerror=()=>{ctrl.signal.removeEventListener('abort',onAbort);rej(new Error('Erro de rede'));};
+        xhr.onabort=()=>{ctrl.signal.removeEventListener('abort',onAbort);rej(new Error('cancelado'));};
+        xhr.open('PUT',presign.uploadUrl);
+        xhr.setRequestHeader('Content-Type', presign.contentType||ct);
+        xhr.send(f);
       });
-      igUserId = withIg.instagram_business_account.id;
-      username = withIg.instagram_business_account.username;
-      pageToken = withIg.access_token || token;
-    }
 
-    if (!igUserId) return res.json({ error: 'Não foi possível identificar a conta do Instagram a partir desse token' });
-
-    const existing = await q(`SELECT id FROM accounts WHERE user_id=$1 AND ig_user_id=$2`, [req.user.id, igUserId]);
-    let id;
-    if (existing.rows.length) {
-      id = existing.rows[0].id;
-      await q(`UPDATE accounts SET access_token=$1, username=$2, graph_host=$3, label=COALESCE($4,label),
-          posts_per_day=COALESCE($5,posts_per_day), start_time=COALESCE($6,start_time),
-          end_time=COALESCE($7,end_time), interval_mode=COALESCE($8,interval_mode), category_id=$9
-        WHERE id=$10`,
-        [pageToken, username, graphHost, label || null, postsPerDay ? parseInt(postsPerDay) : null,
-         startTime || null, endTime || null, intervalMode || null, categoryId || null, id]);
-    } else {
-      // Limite de contas conforme o plano do usuário (só se aplica a contas NOVAS)
-      const limits = await getPlanLimits();
-      const limit = limits[req.user.plan] ?? limits.free;
-      const countR = await q(`SELECT COUNT(*)::int AS c FROM accounts WHERE user_id=$1`, [req.user.id]);
-      if (countR.rows[0].c >= limit) {
-        return res.json({
-          error: `Seu plano atual (${req.user.plan}) permite no máximo ${limit} conta(s) do Instagram. Faça upgrade para conectar mais contas.`,
-          upgradeRequired: true
-        });
+      bytesPerFile[idx]=f.size;
+      activeMap.delete(idx);
+      uploadDone++;
+      refreshProgress();
+      return {idx,originalName:f.name,key:presign.key,publicFileUrl:presign.publicFileUrl||presign.fileUrl,bytes:f.size};
+    }catch(e){
+      if(e.message==='cancelado'){cancelled=true;return null;}
+      // 1 retry automático em erro de rede
+      if(!e.message.startsWith('R2 403')&&!retried){
+        retried=true;
+        console.warn('[Upload] Retry:',f.name,e.message);
+        await new Promise(r=>setTimeout(r,1500));
+        return uploadOne(f,idx,true);
       }
-      id = uid();
-      await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token,graph_host,category_id,posts_per_day,start_time,end_time,interval_mode)
-               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [id, req.user.id, username, label || username, igUserId, pageToken, graphHost, categoryId || null,
-         parseInt(postsPerDay) || 40, startTime || '02:00', endTime || '23:00', intervalMode || 'inteligente']);
+      bytesPerFile[idx]=0;
+      activeMap.delete(idx);
+      errs++;
+      const q=uploadQueue.find(q=>q.id===qid);if(q)q.errs=(q.errs||0)+1;
+      console.warn('[Upload] Falhou:',f.name,e.message);
+      refreshProgress();
+      return null;
     }
-    const a = (await q(`SELECT * FROM accounts WHERE id=$1`, [id])).rows[0];
-    await logActivity(req.user, 'account_add', username);
-    res.json({ success: true, account: accountJson(a) });
-  } catch (e) {
-    console.error('POST /api/accounts:', e);
-    res.json({ error: 'Erro ao verificar/adicionar conta. Veja os logs do servidor para detalhes.' });
   }
-});
 
-app.get('/api/accounts/stats', auth, async (req, res) => {
-  const r = await q(`
-    SELECT a.id,
-      count(v.id)::int AS todos,
-      count(v.id) FILTER (WHERE v.status='postado')::int AS postado,
-      count(v.id) FILTER (WHERE v.status='pendente')::int AS pendente,
-      count(v.id) FILTER (WHERE v.status='erro')::int AS erro
-    FROM accounts a LEFT JOIN videos v ON v.account_id = a.id
-    WHERE a.user_id=$1 GROUP BY a.id`, [req.user.id]);
-  res.json(r.rows);
-});
+  // Processar em paralelo — cada uploadOne checa ctrl.signal.aborted internamente
+  const indexed=fileArr.map((f,idx)=>({f,idx}));
+  for(let i=0;i<indexed.length;i+=PARALLEL){
+    if(cancelled||ctrl.signal.aborted)break;
+    const batch=indexed.slice(i,i+PARALLEL);
+    // Mapear: se já cancelado ao iniciar um item do batch, retorna null imediatamente
+    const results=await Promise.all(batch.map(({f,idx})=>{
+      if(cancelled||ctrl.signal.aborted)return Promise.resolve(null);
+      return uploadOne(f,idx);
+    }));
+    results.forEach(r=>{if(r)uploaded.push(r);});
+    if(cancelled||ctrl.signal.aborted)break;
+  }
 
-app.put('/api/accounts/:id', auth, async (req, res) => {
-  const { label, startTime, endTime, postsPerDay, categoryId } = req.body || {};
-  const r = await q(`UPDATE accounts SET
-      label=COALESCE($1,label), start_time=COALESCE($2,start_time), end_time=COALESCE($3,end_time),
-      posts_per_day=COALESCE($4,posts_per_day), category_id=$5
-    WHERE id=$6 AND user_id=$7 RETURNING id`,
-    [label || null, startTime || null, endTime || null, postsPerDay || null,
-     categoryId === undefined ? null : (categoryId || null), req.params.id, req.user.id]);
-  if (!r.rows.length) return res.json({ error: 'Conta não encontrada' });
-  res.json({ success: true });
-});
+  uploadAbortMap.delete(qid);
+  if(cancelled)return;
+  if(!uploaded.length){
+    updateQueue(qid,0,total,'Nenhum arquivo enviado','error');
+    toast('❌ Falha no upload','er'); return;
+  }
 
-app.delete('/api/accounts/:id', auth, async (req, res) => {
-  await q(`DELETE FROM accounts WHERE id=$1 AND user_id=$2`, [req.params.id, req.user.id]);
-  res.json({ success: true });
-});
-
-app.post('/api/accounts/:id/test', auth, async (req, res) => {
-  const r = await q(`SELECT * FROM accounts WHERE id=$1 AND user_id=$2`, [req.params.id, req.user.id]);
-  const a = r.rows[0];
-  if (!a) return res.json({ error: 'Conta não encontrada' });
-  if (!a.ig_user_id || !a.access_token) return res.json({ error: 'Conta sem credenciais da Meta — reconecte' });
-  try {
-    const host = a.graph_host || GRAPH;
-    const ig = await fetch(`${host}/${a.ig_user_id}?fields=username&access_token=${a.access_token}`).then(x => x.json());
-    if (ig.error) return res.json({ error: ig.error.message || 'Token inválido' });
-    if (ig.username && ig.username !== a.username)
-      await q(`UPDATE accounts SET username=$1 WHERE id=$2`, [ig.username, a.id]);
-    res.json({ success: true, username: ig.username || a.username });
-  } catch (e) { res.json({ error: 'Erro de rede ao contatar a Meta' }); }
-});
-
-app.post('/api/accounts/:id/reschedule', auth, async (req, res) => {
-  try {
-    const r = await q(`SELECT * FROM accounts WHERE id=$1 AND user_id=$2`, [req.params.id, req.user.id]);
-    const a = r.rows[0];
-    if (!a) return res.json({ error: 'Conta não encontrada' });
-    const { postsPerDay, startTime, endTime } = req.body || {};
-    const acc = {
-      ...a,
-      posts_per_day: postsPerDay || a.posts_per_day,
-      start_time: startTime || a.start_time,
-      end_time: endTime || a.end_time
-    };
-    const pend = await q(`SELECT id FROM videos WHERE account_id=$1 AND status='pendente'
-                          ORDER BY scheduled_for NULLS LAST, created_at`, [a.id]);
-    if (!pend.rows.length) return res.json({ success: true, rescheduled: 0 });
-    // Redistribui a partir de amanhã, no início da janela
-    const from = new Date(); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() + 1);
-    const slots = computeSlots(acc, pend.rows.length, new Date(from.getTime() - 1));
-    for (let i = 0; i < pend.rows.length; i++)
-      await q(`UPDATE videos SET scheduled_for=$1 WHERE id=$2`, [slots[i], pend.rows[i].id]);
-    res.json({ success: true, rescheduled: pend.rows.length });
-  } catch (e) { console.error(e); res.json({ error: 'Erro ao reagendar' }); }
-});
-
-// ═══ VÍDEOS — upload presign + confirmação ══════════════════════
-app.get('/api/videos/presign', auth, async (req, res) => {
-  try {
-    const s = await getSettings();
-    if (!s.b2KeyId || !s.b2AppKey || !s.b2Bucket || !s.b2Endpoint)
-      return res.json({ error: 'Storage não configurado — peça ao admin para preencher em Configurações' });
-    const filename = String(req.query.filename || 'video.mp4');
-    const contentType = String(req.query.contentType || 'video/mp4');
-    const safe = filename.replace(/[^\w.\-]/g, '_');
-    const key = `videos/${req.user.id}/${Date.now()}_${crypto.randomBytes(4).toString('hex')}_${safe}`;
-    const cmd = new PutObjectCommand({ Bucket: s.b2Bucket, Key: key, ContentType: contentType });
-    const uploadUrl = await getSignedUrl(s3From(s), cmd, { expiresIn: 3600 });
-    const base = (s.b2PublicUrl || '').replace(/\/$/, '');
-    res.json({ uploadUrl, key, contentType, publicFileUrl: base ? `${base}/${key}` : null });
-  } catch (e) { console.error(e); res.json({ error: 'Erro ao gerar URL de upload' }); }
-});
-
-app.post('/api/videos/confirm-batch', auth, async (req, res) => {
-  try {
-    const { accountId, batchId, cycles, caption, hashtags, videos } = req.body || {};
-    if (!Array.isArray(videos) || !videos.length) return res.json({ error: 'Nenhum vídeo enviado' });
-    const r = await q(`SELECT * FROM accounts WHERE id=$1 AND user_id=$2`, [accountId, req.user.id]);
-    const acc = r.rows[0];
-    if (!acc) return res.json({ error: 'Conta não encontrada' });
-    // Continua a fila: começa depois do último pendente (ou de agora)
-    const last = await q(`SELECT MAX(scheduled_for) AS m FROM videos WHERE account_id=$1 AND status='pendente'`, [acc.id]);
-    const from = new Date(Math.max(Date.now(), last.rows[0].m ? new Date(last.rows[0].m).getTime() : 0));
-    const cyc = Math.max(1, parseInt(cycles) || 1);
-    const slots = computeSlots(acc, videos.length * cyc, from);
-    let n = 0;
-    for (let c = 1; c <= cyc; c++) {
-      for (const v of videos) {
-        if (!v.publicFileUrl) continue;
-        await q(`INSERT INTO videos(id,user_id,account_id,batch_id,original_name,key,b2_url,bytes,caption,hashtags,cycle,status,scheduled_for)
-                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendente',$12)`,
-          [uid(), req.user.id, acc.id, batchId || null, v.originalName || 'video', v.key || null,
-           v.publicFileUrl, v.bytes || 0, caption || '', hashtags || '', c, slots[n]]);
-        n++;
-      }
-    }
-    res.json({ success: true, scheduled: n });
-  } catch (e) { console.error(e); res.json({ error: 'Erro ao agendar vídeos' }); }
-});
-
-// ═══ VÍDEOS — listagem e ações ══════════════════════════════════
-function videoJson(v) {
-  return {
-    id: v.id, originalName: v.original_name, username: v.username || v.label || '?',
-    cycle: v.cycle, status: v.status, errorMsg: v.error_msg,
-    scheduledFor: v.scheduled_for, postedAt: v.posted_at, b2Url: v.b2_url, batchId: v.batch_id
-  };
-}
-
-app.get('/api/videos', auth, async (req, res) => {
-  try {
-    const { status = 'todos', accountId, date } = req.query;
-    const limit = Math.min(100000, parseInt(req.query.limit) || 500);
-    const params = [req.user.id];
-    let where = `v.user_id = $1`;
-    if (accountId && accountId !== 'all') { params.push(accountId); where += ` AND v.account_id = $${params.length}`; }
-    if (date) { params.push(date); where += ` AND (v.scheduled_for AT TIME ZONE '${TZ}')::date = $${params.length}::date`; }
-
-    const cr = await q(`SELECT v.status, count(*)::int AS n FROM videos v WHERE ${where} GROUP BY v.status`, params);
-    const counts = { todos: 0 };
-    cr.rows.forEach(r => { counts[r.status] = r.n; counts.todos += r.n; });
-
-    let whereList = where;
-    const listParams = [...params];
-    if (status && status !== 'todos') { listParams.push(status); whereList += ` AND v.status = $${listParams.length}`; }
-    const order = status === 'pendente'
-      ? `v.scheduled_for ASC`
-      : `COALESCE(v.posted_at, v.scheduled_for, v.created_at) DESC`;
-    listParams.push(limit);
-    const vr = await q(`SELECT v.*, a.username, a.label FROM videos v
-                        LEFT JOIN accounts a ON a.id = v.account_id
-                        WHERE ${whereList} ORDER BY ${order} LIMIT $${listParams.length}`, listParams);
-    res.json({ videos: vr.rows.map(videoJson), counts });
-  } catch (e) { console.error(e); res.json({ videos: [], counts: {} }); }
-});
-
-app.post('/api/videos/cancel-pending', auth, async (req, res) => {
-  const params = [req.user.id];
-  let where = `user_id=$1 AND status='pendente'`;
-  if (req.query.accountId) { params.push(req.query.accountId); where += ` AND account_id=$2`; }
-  const r = await q(`UPDATE videos SET status='cancelado' WHERE ${where} RETURNING id`, params);
-  res.json({ success: true, cancelled: r.rows.length });
-});
-
-app.get('/api/videos/:id/status', auth, async (req, res) => {
-  const r = await q(`SELECT status, error_msg FROM videos WHERE id=$1 AND user_id=$2`, [req.params.id, req.user.id]);
-  if (!r.rows.length) return res.json({ error: 'Não encontrado' });
-  res.json({ status: r.rows[0].status, errorMsg: r.rows[0].error_msg });
-});
-
-app.post('/api/videos/:id/retry', auth, async (req, res) => {
-  await q(`UPDATE videos SET status='pendente', error_msg=NULL, scheduled_for=now() + interval '2 minutes'
-           WHERE id=$1 AND user_id=$2 AND status IN ('erro','cancelado')`, [req.params.id, req.user.id]);
-  res.json({ success: true });
-});
-
-app.post('/api/videos/:id/publish-now', auth, async (req, res) => {
-  const r = await q(`UPDATE videos SET scheduled_for=now(), status='pendente', error_msg=NULL
-                     WHERE id=$1 AND user_id=$2 AND status IN ('pendente','erro','cancelado') RETURNING id`,
-    [req.params.id, req.user.id]);
-  if (!r.rows.length) return res.json({ error: 'Vídeo não encontrado ou já em processamento' });
-  setTimeout(tick, 500); // dispara o worker imediatamente
-  res.json({ success: true });
-});
-
-app.delete('/api/videos/:id', auth, async (req, res) => {
-  await q(`DELETE FROM videos WHERE id=$1 AND user_id=$2`, [req.params.id, req.user.id]);
-  res.json({ success: true });
-});
-
-// ═══ DASHBOARD ══════════════════════════════════════════════════
-app.get('/api/dashboard', auth, async (req, res) => {
-  try {
-    const uidP = [req.user.id];
-    const sr = await q(`SELECT
-        count(*)::int AS total,
-        count(*) FILTER (WHERE status='postado')::int AS postado,
-        count(*) FILTER (WHERE status='pendente')::int AS pendente,
-        count(*) FILTER (WHERE status='erro')::int AS erro,
-        count(*) FILTER (WHERE status='processando')::int AS "activeJobs"
-      FROM videos WHERE user_id=$1`, uidP);
-    const accCount = await q(`SELECT count(*)::int AS n FROM accounts WHERE user_id=$1`, uidP);
-    const today = await q(`SELECT count(*)::int AS n FROM videos
-      WHERE user_id=$1 AND status='postado'
-      AND (posted_at AT TIME ZONE '${TZ}')::date = (now() AT TIME ZONE '${TZ}')::date`, uidP);
-
-    const accs = await q(`SELECT * FROM accounts WHERE user_id=$1 ORDER BY created_at`, uidP);
-    const accStats = [];
-    for (const a of accs.rows) {
-      const c = await q(`SELECT
-          count(*)::int AS todos,
-          count(*) FILTER (WHERE status='postado')::int AS postado,
-          count(*) FILTER (WHERE status='pendente')::int AS pendente,
-          count(*) FILTER (WHERE status='erro')::int AS erro
-        FROM videos WHERE account_id=$1`, [a.id]);
-      const times = await q(`SELECT
-          MIN(scheduled_for) FILTER (WHERE status='pendente' AND scheduled_for > now()) AS next,
-          MAX(scheduled_for) FILTER (WHERE status='pendente') AS last_pending,
-          MAX(posted_at) FILTER (WHERE status='postado') AS last_posted
-        FROM videos WHERE account_id=$1`, [a.id]);
-      const daily = await q(`SELECT (scheduled_for AT TIME ZONE '${TZ}')::date::text AS d, count(*)::int AS n
-        FROM videos WHERE account_id=$1 AND status='pendente' GROUP BY 1 ORDER BY 1 LIMIT 7`, [a.id]);
-      const dailySchedule = {};
-      daily.rows.forEach(r => dailySchedule[r.d] = r.n);
-      accStats.push({
-        ...accountJson(a),
-        counts: c.rows[0],
-        nextScheduled: times.rows[0].next,
-        lastPosted: times.rows[0].last_posted,
-        lastPending: times.rows[0].last_pending,
-        dailySchedule
-      });
-    }
-
-    const up = await q(`SELECT v.original_name, v.scheduled_for, a.username, a.label
-      FROM videos v LEFT JOIN accounts a ON a.id=v.account_id
-      WHERE v.user_id=$1 AND v.status='pendente' ORDER BY v.scheduled_for LIMIT 8`, uidP);
-
-    res.json({
-      stats: { ...sr.rows[0], accounts: accCount.rows[0].n },
-      todayCount: today.rows[0].n,
-      accStats,
-      upcoming: up.rows.map(v => ({
-        originalName: v.original_name,
-        username: v.username || v.label || '?',
-        scheduledFor: v.scheduled_for
-      }))
-    });
-  } catch (e) { console.error(e); res.json({ stats: {}, accStats: [], upcoming: [] }); }
-});
-
-// ═══ ADMIN ══════════════════════════════════════════════════════
-app.get('/api/admin/users-overview', auth, adminOnly, async (req, res) => {
-  const r = await q(`SELECT u.id, u.name, u.email, u.role, u.status, u.plan, u.login_count, u.created_at,
-      (SELECT count(*) FROM accounts a WHERE a.user_id=u.id)::int AS acc_count,
-      (SELECT count(*) FROM videos v WHERE v.user_id=u.id)::int AS v_total,
-      (SELECT count(*) FROM videos v WHERE v.user_id=u.id AND v.status='postado')::int AS v_postado,
-      (SELECT count(*) FROM videos v WHERE v.user_id=u.id AND v.status='pendente')::int AS v_pendente,
-      (SELECT count(*) FROM videos v WHERE v.user_id=u.id AND v.status='erro')::int AS v_erro
-    FROM users u ORDER BY u.created_at`);
-  res.json(r.rows.map(u => ({
-    id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, plan: u.plan,
-    loginCount: u.login_count, createdAt: u.created_at, accountCount: u.acc_count,
-    videoStats: { total: u.v_total, postado: u.v_postado, pendente: u.v_pendente, erro: u.v_erro }
-  })));
-});
-
-app.get('/api/admin/stats', auth, adminOnly, async (req, res) => {
-  const r = await q(`SELECT count(*)::int AS total,
-      count(*) FILTER (WHERE status='active')::int AS active,
-      count(*) FILTER (WHERE role='admin')::int AS admins
-    FROM users`);
-  const logins = await q(`SELECT count(*)::int AS n FROM activity
-    WHERE action='login' AND (created_at AT TIME ZONE '${TZ}')::date = (now() AT TIME ZONE '${TZ}')::date`);
-  res.json({ ...r.rows[0], todayLogins: logins.rows[0].n });
-});
-
-app.put('/api/admin/users/:id', auth, adminOnly, async (req, res) => {
-  const { plan, role, status } = req.body || {};
-  await q(`UPDATE users SET plan=COALESCE($1,plan), role=COALESCE($2,role), status=COALESCE($3,status) WHERE id=$4`,
-    [plan || null, role || null, status || null, req.params.id]);
-  await logActivity(req.user, 'admin_update_user', JSON.stringify({ id: req.params.id, plan, role, status }));
-  res.json({ success: true });
-});
-
-app.delete('/api/admin/users/:id', auth, adminOnly, async (req, res) => {
-  if (req.params.id === req.user.id) return res.json({ error: 'Você não pode deletar a si mesmo' });
-  await q(`DELETE FROM users WHERE id=$1`, [req.params.id]);
-  await logActivity(req.user, 'admin_delete_user', req.params.id);
-  res.json({ success: true });
-});
-
-app.get('/api/admin/activity', auth, adminOnly, async (req, res) => {
-  const r = await q(`SELECT action, email, detail, created_at FROM activity ORDER BY created_at DESC LIMIT 100`);
-  res.json(r.rows);
-});
-
-// ═══ WORKER — publica vídeos agendados no Instagram ═════════════
-function buildCaption(v) {
-  const cap = (v.caption || '').trim();
-  const tags = (v.hashtags || '').trim().split(/[\s,]+/).filter(Boolean)
-    .map(t => t.startsWith('#') ? t : '#' + t).join(' ');
-  return [cap, tags].filter(Boolean).join('\n\n').slice(0, 2200);
-}
-
-async function setProgress(id, pct, msg) {
-  await q(`UPDATE videos SET error_msg=$2 WHERE id=$1`, [id, `[${pct}%] ${msg}`]).catch(() => {});
-}
-
-async function publishVideo(v) {
-  try {
-    if (!v.ig_user_id || !v.access_token) throw new Error('Conta sem credenciais da Meta — reconecte a conta');
-    if (!v.b2_url) throw new Error('Vídeo sem URL pública');
-    const host = v.graph_host || GRAPH; // graph.facebook.com (Facebook Login) ou graph.instagram.com (Instagram Login)
-
-    await setProgress(v.id, 8, 'Criando container na Meta...');
-    const create = await fetch(`${host}/${v.ig_user_id}/media`, {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        media_type: 'REELS', video_url: v.b2_url,
-        caption: buildCaption(v), access_token: v.access_token
+  // Confirmar em lote
+  uploaded.sort((a,b)=>a.idx-b.idx);
+  updateQueue(qid,total,total,`Agendando ${uploaded.length} vídeo(s)...`,'uploading');
+  try{
+    const r=await fetch('/api/videos/confirm-batch',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},
+      body:JSON.stringify({
+        accountId:params.accountId, batchId,
+        cycles:parseInt(params.cycles)||1,
+        caption:params.caption||'',
+        hashtags:params.hashtags||'',
+        videos:uploaded.map(u=>({key:u.key,publicFileUrl:u.publicFileUrl,originalName:u.originalName,bytes:u.bytes}))
       })
-    }).then(x => x.json());
-    if (create.error) throw new Error(create.error.message || 'Erro ao criar container');
+    }).then(r=>r.json());
+    if(r.error)throw new Error(r.error);
+    const scheduled=r.scheduled||uploaded.length;
+    updateQueue(qid,total,total,`${scheduled} vídeo(s) agendados!`,'done');
+    toast('✅ @'+(acc.username||acc.label)+': '+scheduled+(errs>0?' ('+errs+' erros)':'')+'!','ok');
+  }catch(e){
+    updateQueue(qid,total,total,'Erro ao agendar: '+e.message,'error');
+    toast('⚠️ '+e.message,'er');
+  }
+  const msg=errs>0?`${done} agendados, ${errs} com erro`:`${done} vídeo(s) agendados!`;
+  updateQueue(qid,total,total,msg,errs>0&&done===0?'error':'done');
+  toast(errs===0?'✅ @'+(acc.username||acc.label)+': '+done+' agendados!'
+    :'⚠️ @'+(acc.username||acc.label)+': '+done+' ok, '+errs+' erros',errs===0?'ok':'wa');
+  if(document.getElementById('panel-videos').classList.contains('act'))loadVideos();
+  if(document.getElementById('panel-dash').classList.contains('act'))loadDash();
+  setTimeout(()=>removeFromQueue(qid),60000);
+}
 
-    // Aguarda o Instagram processar o vídeo (até ~3 min)
-    let ok = false;
-    for (let i = 1; i <= 36; i++) {
-      await sleep(5000);
-      const st = await fetch(`${host}/${create.id}?fields=status_code&access_token=${v.access_token}`)
-        .then(x => x.json()).catch(() => ({}));
-      if (st.status_code === 'FINISHED') { ok = true; break; }
-      if (st.status_code === 'ERROR') throw new Error('O Instagram rejeitou o vídeo (formato/duração)');
-      await setProgress(v.id, Math.min(90, 10 + Math.round(i / 36 * 78)), `Processando no Instagram (${i}/36)`);
+// Dashboard
+async function loadDash(){
+  const d=await api('/api/dashboard');
+  const sr=d.stats||{};
+  document.getElementById('ds-total').textContent=sr.total||0;
+  document.getElementById('ds-posted').textContent=sr.postado||0;
+  document.getElementById('ds-pending').textContent=sr.pendente||0;
+  document.getElementById('ds-error').textContent=sr.erro||0;
+  document.getElementById('ds-accs').textContent=sr.accounts||0;
+  document.getElementById('ds-proc').textContent=sr.activeJobs||0;
+  document.getElementById('ds-today').textContent=d.todayCount||0;
+  // Atualizar select de categoria do dashboard
+  const dashCatSel=document.getElementById('dashCatFilter');
+  if(dashCatSel){
+    const curDashCat=dashCatSel.value;
+    dashCatSel.innerHTML='<option value="all">Todas categorias</option>'+categories.map(c=>'<option value="'+c.id+'"'+(c.id===curDashCat?' selected':'')+'>'+c.name+'</option>').join('');
+    if(curDashCat)dashCatSel.value=curDashCat;
+  }
+  // Cards por conta — filtrar por categoria
+  const dashCatId=dashCatSel?dashCatSel.value:'all';
+  const accEl=document.getElementById('dashAccStats');
+  const accStatsAll=d.accStats||[];
+  const accStats=dashCatId==='all'?accStatsAll:accStatsAll.filter(a=>a.categoryId===dashCatId);
+  if(!accStats.length){accEl.innerHTML='<div class="empty"><div class="empty-icon">📱</div><p>Nenhuma conta'+(dashCatId!=='all'?' nessa categoria':' cadastrada')+'</p></div>';}
+  else{accEl.innerHTML='<div class="dash-acc-grid">'+accStats.map(a=>{
+    const c=a.counts||{};
+    const post=c.postado||0, pend=c.pendente||0, err=c.erro||0;
+    const tot=c.todos||0;
+    // Barras relativas ao maior valor entre os 3 (nunca > 100%, nunca dividir por 0)
+    const barMax=Math.max(post,pend,err,1);
+    const pPost=Math.round(post/barMax*100),pPend=Math.round(pend/barMax*100),pErr=Math.round(err/barMax*100);
+    // Estado do card: erro > pendente > ativo > pausado — define cor da borda e do selo
+    let stateColor='var(--ac)', stateSh='rgba(62,207,142,.25)', pill='<span class="dash-status-pill on"><span class="dash-status-dot"></span>Ativo</span>';
+    if(err>0){stateColor='var(--rd)';stateSh='rgba(255,85,85,.25)';pill='<span class="dash-status-pill warn"><span class="dash-status-dot"></span>Com erro</span>';}
+    else if(!a.nextScheduled && pend===0){stateColor='var(--tx3)';stateSh='rgba(255,255,255,.06)';pill='<span class="dash-status-pill off"><span class="dash-status-dot"></span>Sem fila</span>';}
+    return `<div class="dash-acc-card" style="--acc-state:${stateColor};--acc-state-sh:${stateSh}">
+      <div class="dash-acc-header"><div class="dash-acc-av-ring"><div class="dash-acc-av">📷</div></div><div style="flex:1;min-width:0"><div class="dash-acc-name">@${a.username||a.label} ${getCatTag(a.categoryId)}</div><div class="dash-acc-sub">${a.postsPerDay}×/dia · ${a.startTime}–${a.endTime}</div></div>${pill}<button class="icon-btn" title="Reagendar pendentes com intervalo correto" onclick="rescheduleAcc('${a.id}','${a.username||a.label}')">🔄</button></div>
+      <div class="dash-acc-bars">
+        <div class="dash-bar-row"><span class="dash-bar-lbl">✅ Postados</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pPost}%;background:linear-gradient(90deg,#0ea86f,var(--ac))"></div></div><span class="dash-bar-val c-g">${post}</span></div>
+        <div class="dash-bar-row"><span class="dash-bar-lbl">⏰ Pendentes</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pPend}%;background:linear-gradient(90deg,#d6820f,var(--ye))"></div></div><span class="dash-bar-val c-y">${pend}</span></div>
+        <div class="dash-bar-row"><span class="dash-bar-lbl">❌ Erros</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pErr}%;background:linear-gradient(90deg,#c22,var(--rd))"></div></div><span class="dash-bar-val c-r">${err}</span></div>
+        <div class="dash-bar-row"><span class="dash-bar-lbl">📦 Total</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${tot>0?100:0}%;background:linear-gradient(90deg,#6366f1,#ec4899)"></div></div><span class="dash-bar-val c-p">${tot}</span></div>
+      </div>
+      <div class="dash-acc-times">
+        <div class="dash-acc-time-row"><span class="dash-time-lbl">⏰ Próximo</span><span class="dash-time-val">${a.nextScheduled?fmtDT(a.nextScheduled):'—'}</span></div>
+        <div class="dash-acc-time-row"><span class="dash-time-lbl">✅ Último post</span><span class="dash-time-val">${a.lastPosted?fmtDT(a.lastPosted):'—'}</span></div>
+        <div class="dash-acc-time-row"><span class="dash-time-lbl">📅 Fim da fila</span><span class="dash-time-val" style="color:var(--ye)">${a.lastPending?fmtDT(a.lastPending):'—'}</span></div>
+      </div>
+      ${renderDailySchedule(a.dailySchedule)}
+    </div>`;
+  }).join('')+'</div>';}
+  // Lista de próximos
+  const next=d.upcoming||[];const el=document.getElementById('dashNextList');
+  if(!next.length){el.innerHTML='<div class="empty"><div class="empty-icon">📅</div><p>Nenhum post agendado</p></div>';return;}
+  el.innerHTML=next.map(v=>`<div class="video-item" style="--vi-state:var(--ye);--vi-state-sh:rgba(245,166,35,.25)"><div class="video-left"><span class="video-icon" style="--ic-bg:var(--ye2)">⏰</span><div><div class="video-name">${v.originalName}</div><div class="video-account">@${v.username}</div></div></div><div class="video-right"><div><span class="badge b-pend">pendente</span><div class="video-date">${fmtDT(v.scheduledFor)}</div></div></div></div>`).join('');
+}
+async function loadAccounts(){
+  const [data, statsArr] = await Promise.all([api('/api/accounts'), api('/api/accounts/stats')]);
+  accounts=data;updateSbAccounts();
+  const grid=document.getElementById('accGrid');
+  if(!accounts.length){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📱</div><p>Nenhuma conta</p></div>';return;}
+  const statsMap={};(statsArr||[]).forEach(s=>statsMap[s.id]=s);
+  grid.innerHTML=accounts.map(a=>{
+    const catTag=getCatTag(a.categoryId);
+    const s=statsMap[a.id]||{};const c=s||{total:0};
+    return `<div class="acc-card"><div class="acc-card-top"><div class="acc-card-left"><div class="acc-avatar">📷</div><div><div class="acc-username">@${a.username||a.label}</div><span class="acc-badge intel">⚡ ${a.intervalMode||'inteligente'}</span><div class="acc-status" style="margin-top:2px">● active</div></div></div><div class="acc-card-actions"><button title="Testar" onclick="testAccount('${a.id}')">🔗</button><button title="Editar" onclick="openEditAccount('${a.id}')">✏️</button><button class="del" title="Remover" onclick="delAccount('${a.id}')">🗑</button></div></div><div class="acc-info-row"><span class="acc-info-lbl">Posts:</span><span class="acc-info-val">${c.todos||0}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Janela:</span><span class="acc-info-val">${a.startTime}-${a.endTime}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Vídeos/dia:</span><span class="acc-info-val">${a.postsPerDay}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Intervalo:</span><span class="acc-info-val">${a.intervalMinutes}min</span></div></div>`;
+  }).join('');
+}
+function updateSbAccounts(){document.getElementById('sbAccsList').innerHTML=accounts.map(a=>`<div class="sb-acc-item" onclick="nav('accounts')"><div class="sb-acc-av">${(a.username||'?')[0].toUpperCase()}</div><div><div class="sb-acc-name">@${a.username||a.label}</div><div class="sb-acc-handle">${a.postsPerDay}×/dia</div></div></div>`).join('');}
+function selMode(mode){currentMode=mode;document.getElementById('mode-intel').classList.toggle('sel',mode==='inteligente');document.getElementById('mode-manual').classList.toggle('sel',mode==='manual');updateIntervalPreview();}
+function updateIntervalPreview(){const ppd=parseInt(document.getElementById('aa-ppd').value)||40;const st=document.getElementById('aa-st').value||'02:00';const et=document.getElementById('aa-et').value||'23:00';const[sh,sm]=st.split(':').map(Number);const[eh,em]=et.split(':').map(Number);const w=(eh*60+em)-(sh*60+sm);const iv=ppd>1?Math.floor(w/(ppd-1)):w;document.getElementById('intervalPreview').textContent='Intervalo: '+iv+'min · '+ppd+' posts/dia';}
+updateIntervalPreview();
+
+async function addAccount(){
+  const token=document.getElementById('aa-token').value.trim();const label=document.getElementById('aa-label').value.trim();
+  if(!token){toast('Cole o Access Token','er');return;}const btn=document.getElementById('addAccBtn');btn.disabled=true;btn.innerHTML='<div class="spin"></div> Verificando...';
+  const aaCatEl=document.getElementById('aa-cat');const categoryId=aaCatEl?aaCatEl.value||null:null;
+  try{const r=await api('/api/accounts',{method:'POST',body:JSON.stringify({accessToken:token,label,categoryId,postsPerDay:document.getElementById('aa-ppd').value,startTime:document.getElementById('aa-st').value,endTime:document.getElementById('aa-et').value,intervalMode:currentMode})});
+    if(r.success){toast('✅ @'+r.account.username+' adicionada!','ok');closeModal('modalAddAcc');document.getElementById('aa-token').value='';document.getElementById('aa-label').value='';loadAccounts();}
+    else if(r.upgradeRequired){toast(r.error,'er');closeModal('modalAddAcc');nav('plans');}
+    else toast('Erro: '+r.error,'er');
+  }catch(e){toast('Erro: '+e.message,'er');}btn.disabled=false;btn.innerHTML='✅ Verificar e adicionar';
+}
+async function testAccount(id){toast('Testando...','in');const r=await api('/api/accounts/'+id+'/test',{method:'POST'});if(r.success)toast('✓ @'+r.username+' ok','ok');else toast('Erro: '+r.error,'er');}
+async function delAccount(id){if(!confirm('Remover esta conta?'))return;await api('/api/accounts/'+id,{method:'DELETE'});toast('Removida','wa');loadAccounts();}
+
+// Videos
+async function populateAccFilter(){
+  const data=await api('/api/accounts');accounts=data;updateSbAccounts();
+  // Filtro de categoria
+  const catSel=document.getElementById('catFilter');
+  if(catSel){const curCat=catSel.value;catSel.innerHTML='<option value="all">Todas categorias</option>'+categories.map(c=>'<option value="'+c.id+'" '+(c.id===curCat?'selected':'')+'>'+c.name+'</option>').join('');}
+  // Filtrar contas pela categoria selecionada
+  const catId=catSel?catSel.value:'all';
+  const filtered=catId==='all'?accounts:accounts.filter(a=>a.categoryId===catId);
+  const sel=document.getElementById('accFilter');const cur=sel.value;
+  sel.innerHTML='<option value="all">Todas</option>'+filtered.map(a=>'<option value="'+a.id+'" '+(a.id===cur?'selected':'')+'>@'+(a.username||a.label)+'</option>').join('');
+}
+function filterTab(status,btn){currentStatus=status;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('act'));btn.classList.add('act');loadVideos();}
+async function loadVideos(){
+  const accId=document.getElementById('accFilter').value;const date=document.getElementById('dateFilter').value;
+  let url='/api/videos?status='+currentStatus;if(accId!=='all')url+='&accountId='+accId;if(date)url+='&date='+date;
+  const data=await api(url);const videos=data.videos||[];const counts=data.counts||{};
+  ['todos','pendente','processando','postado','erro'].forEach(s=>{const el=document.getElementById('cnt-'+s);if(el)el.textContent=counts[s]||0;});
+  document.getElementById('pendCount').textContent=counts.pendente||0;const el=document.getElementById('videosList');
+  if(!videos.length){el.innerHTML='<div class="empty"><div class="empty-icon">🎬</div><p>Nenhum vídeo</p></div>';return;}
+  const ic={pendente:'⏰',processando:'🔄',postado:'✅',erro:'❌',cancelado:'🚫'};const sc={pendente:'b-pend',processando:'b-proc',postado:'b-post',erro:'b-erro',cancelado:'b-canc'};
+  const stCol={pendente:['var(--ye)','rgba(245,166,35,.25)','var(--ye2)'],processando:['var(--bl)','rgba(91,156,246,.25)','var(--bl2)'],postado:['var(--ac)','rgba(62,207,142,.25)','var(--ac2)'],erro:['var(--rd)','rgba(255,85,85,.25)','var(--rd2)'],cancelado:['var(--tx3)','rgba(255,255,255,.06)','var(--s3)']};
+  el.innerHTML=videos.map(v=>{
+    const isProc=v.status==='processando';
+    const [borderC,shadowC,chipBg]=stCol[v.status]||stCol.pendente;
+    // Calcular % a partir da mensagem de progresso "... (N/36)"
+    let procPct=5,procMsg=v.errorMsg||'Processando...';
+    if(isProc){
+      const m=procMsg.match(/^\[(\d+)%\]\s*(.*)$/);
+      if(m){procPct=parseInt(m[1]);procMsg=m[2];}
     }
-    if (!ok) throw new Error('Timeout: Instagram demorou demais para processar');
+    const infoLine=isProc
+      ? `<div class="video-proc-msg">⟳ ${procMsg.slice(0,80)}</div><div class="video-progress"><div class="video-progress-fill" style="width:${procPct}%"></div></div>`
+      : (v.errorMsg?`<div style="font-size:10px;color:var(--rd);margin-top:1px">⚠ ${v.errorMsg.slice(0,120)}</div>`:'');
+    return `<div class="video-item" id="vi-${v.id}" style="--vi-state:${borderC};--vi-state-sh:${shadowC}"><div class="video-left"><span class="video-icon" style="--ic-bg:${chipBg}">${ic[v.status]||'⏰'}</span><div style="min-width:0"><div class="video-name">${v.originalName}</div><div class="video-account">@${v.username}${v.cycle>1?' · ciclo '+v.cycle:''}</div>${infoLine}</div></div><div class="video-right"><div style="text-align:right"><span class="badge ${sc[v.status]}">${v.status}</span><div class="video-date">${v.status==='postado'?'✓ '+fmtDT(v.postedAt):fmtDT(v.scheduledFor)}</div></div><div class="video-actions">${v.b2Url?'<button class="icon-btn" title="Copiar URL" onclick="copyVideoUrl(\''+v.b2Url+'\',this)">🔗</button>':''}${v.status==='erro'?'<button class="icon-btn" onclick="retryVideo(\''+v.id+'\')">↺</button>':''}${v.status==='pendente'?'<button class="icon-btn" onclick="pubNow(\''+v.id+'\')">▶</button>':''}<button class="icon-btn danger" onclick="delVideo(\''+v.id+'\')">✕</button></div></div></div>`;
+  }).join('');
+  // Iniciar polling para vídeos processando
+  startProcessingPoll(videos.filter(v=>v.status==='processando').map(v=>v.id));
+}
+async function cancelPending(){const accId=document.getElementById('accFilter').value;const r=await api('/api/videos/cancel-pending'+(accId!=='all'?'?accountId='+accId:''),{method:'POST'});toast((r.cancelled||0)+' cancelados','wa');loadVideos();}
+async function retryVideo(id){await api('/api/videos/'+id+'/retry',{method:'POST'});toast('Reagendado','ok');loadVideos();}
+async function pubNow(id){
+  if(!confirm('Publicar agora?'))return;
+  const r=await api('/api/videos/'+id+'/publish-now',{method:'POST'});
+  if(r.error){toast('Erro: '+r.error,'er');return;}
+  toast('▶ Publicando...','in');
+  // Recarregar imediatamente para mostrar status atualizado
+  await loadVideos();
+  // Iniciar polling para acompanhar o progresso em tempo real
+  startProcessingPoll([id]);
+}
+async function delVideo(id){await api('/api/videos/'+id,{method:'DELETE'});loadVideos();}
 
-    await setProgress(v.id, 95, 'Publicando...');
-    const pub = await fetch(`${host}/${v.ig_user_id}/media_publish`, {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ creation_id: create.id, access_token: v.access_token })
-    }).then(x => x.json());
-    if (pub.error) throw new Error(pub.error.message || 'Erro ao publicar');
+// Settings
+async function loadSettings(){
+  const r=await api('/api/settings');
+  const isAdm=currentUser&&currentUser.role==='admin';
+  const adminOnly=document.getElementById('settingsAdminOnly');
+  const form=document.getElementById('settingsForm');
+  const kvForm=document.getElementById('kirvanoAdminOnly');
+  if(adminOnly)adminOnly.style.display=isAdm?'none':'block';
+  if(form)form.style.display=isAdm?'block':'none';
+  if(kvForm)kvForm.style.display=isAdm?'block':'none';
+  if(isAdm){
+    if(r.b2KeyId)document.getElementById('b2-kid').value=r.b2KeyId;
+    if(r.b2AppKey)document.getElementById('b2-key').value=r.b2AppKey;
+    if(r.b2Bucket)document.getElementById('b2-bkt').value=r.b2Bucket;
+    if(r.b2Endpoint)document.getElementById('b2-ep').value=r.b2Endpoint;
+    if(r.b2PublicUrl)document.getElementById('b2-pub').value=r.b2PublicUrl;
+    document.getElementById('kv-webhook').value=location.origin+'/webhooks/kirvano?token='+(r.kirvanoToken||'SEU_TOKEN_AQUI');
+    if(r.kirvanoToken)document.getElementById('kv-token').value=r.kirvanoToken;
+    if(r.kirvanoProProductId)document.getElementById('kv-pid-pro').value=r.kirvanoProProductId;
+    if(r.kirvanoPremiumProductId)document.getElementById('kv-pid-premium').value=r.kirvanoPremiumProductId;
+    if(r.kirvanoCheckoutPro)document.getElementById('kv-chk-pro').value=r.kirvanoCheckoutPro;
+    if(r.kirvanoCheckoutPremium)document.getElementById('kv-chk-premium').value=r.kirvanoCheckoutPremium;
+    if(r.planPricePro)document.getElementById('kv-price-pro').value=r.planPricePro;
+    if(r.planPricePremium)document.getElementById('kv-price-premium').value=r.planPricePremium;
+    document.getElementById('kv-lim-free').value=r.planLimitFree||1;
+    document.getElementById('kv-lim-pro').value=r.planLimitPro||5;
+    document.getElementById('kv-lim-premium').value=r.planLimitPremium||20;
+  }
+}
+async function saveKirvanoSettings(){
+  const body={
+    kirvanoToken:document.getElementById('kv-token').value.trim(),
+    kirvanoProProductId:document.getElementById('kv-pid-pro').value.trim(),
+    kirvanoPremiumProductId:document.getElementById('kv-pid-premium').value.trim(),
+    kirvanoCheckoutPro:document.getElementById('kv-chk-pro').value.trim(),
+    kirvanoCheckoutPremium:document.getElementById('kv-chk-premium').value.trim(),
+    planPricePro:document.getElementById('kv-price-pro').value.trim(),
+    planPricePremium:document.getElementById('kv-price-premium').value.trim(),
+    planLimitFree:document.getElementById('kv-lim-free').value.trim(),
+    planLimitPro:document.getElementById('kv-lim-pro').value.trim(),
+    planLimitPremium:document.getElementById('kv-lim-premium').value.trim(),
+  };
+  await api('/api/settings',{method:'POST',body:JSON.stringify(body)});
+  toast('✅ Salvo!','ok');
+  loadSettings();
+}
+async function loadPlans(){
+  const r=await api('/api/plans');
+  const cur=r.currentPlan;
+  document.getElementById('planUsageLine').textContent=`Você está no plano ${planLabel(cur)} · ${r.accountsUsed}/${r.limits[cur]} contas do Instagram conectadas`+(r.planExpiresAt?` · renova em ${fmtDT(r.planExpiresAt)}`:'');
+  const defs=[
+    {id:'free',name:'Grátis',color:'#8b8fa3',price:'R$ 0',sub:'/sempre',checkout:null,features:[`${r.limits.free} conta do Instagram`,'Agendamento automático','Upload direto pro storage']},
+    {id:'pro',name:'Pro',color:'#a78bfa',price:r.prices.pro||'—',sub:r.prices.pro?'':'',checkout:r.checkout.pro,features:[`${r.limits.pro} contas do Instagram`,'Tudo do plano Grátis','Suporte prioritário']},
+    {id:'premium',name:'Premium',color:'#ecb43c',price:r.prices.premium||'—',sub:r.prices.premium?'':'',checkout:r.checkout.premium,features:[`${r.limits.premium} contas do Instagram`,'Tudo do plano Pro','Prioridade máxima na fila']},
+  ];
+  document.getElementById('plansGrid').innerHTML=defs.map(p=>{
+    const isCurrent=p.id===cur;
+    const btn=isCurrent?'<button class="btn btn-g btn-sm" disabled style="width:100%;justify-content:center">Plano atual</button>'
+      :(p.checkout?`<a href="${p.checkout}" target="_blank" class="btn btn-p btn-sm" style="width:100%;justify-content:center;text-decoration:none">Assinar ${p.name}</a>`
+      :'<button class="btn btn-g btn-sm" disabled style="width:100%;justify-content:center">Em breve</button>');
+    return `<div class="plan-card ${isCurrent?'current':''}" style="--pc:${p.color}">
+      ${isCurrent?'<span class="plan-badge">Seu plano</span>':''}
+      <div class="plan-name">${p.name}</div>
+      <div class="plan-price">${p.price}<small>${p.sub}</small></div>
+      <ul>${p.features.map(f=>`<li>${f}</li>`).join('')}</ul>
+      ${btn}
+    </div>`;
+  }).join('');
+}
+function planLabel(p){return {free:'Grátis',pro:'Pro',premium:'Premium'}[p]||p;}
+async function saveSettings(){const body={b2KeyId:document.getElementById('b2-kid').value.trim(),b2AppKey:document.getElementById('b2-key').value.trim(),b2Bucket:document.getElementById('b2-bkt').value.trim(),b2Endpoint:document.getElementById('b2-ep').value.trim(),b2PublicUrl:document.getElementById('b2-pub').value.trim()};if(!body.b2KeyId||!body.b2Bucket){toast('Preencha Key ID e Bucket','er');return;}await api('/api/settings',{method:'POST',body:JSON.stringify(body)});toast('✅ Salvo!','ok');}
 
-    await q(`UPDATE videos SET status='postado', posted_at=now(), error_msg=NULL WHERE id=$1`, [v.id]);
-    console.log(`✅ Publicado: ${v.original_name} (@${v.username || '?'})`);
-  } catch (e) {
-    console.error(`❌ Falha ao publicar ${v.id}:`, e.message);
-    await q(`UPDATE videos SET status='erro', error_msg=$2 WHERE id=$1`,
-      [v.id, String(e.message || 'Erro desconhecido').slice(0, 300)]).catch(() => {});
+// ═══ ADMIN PANEL ═══
+async function loadAdminUsers(){
+  const [overview, stats] = await Promise.all([api('/api/admin/users-overview'), api('/api/admin/stats')]);
+  allAdminUsers = overview;
+  document.getElementById('adminUserCount').textContent = overview.length + ' usuário' + (overview.length!==1?'s':'');
+  document.getElementById('adminStats').innerHTML = `
+    <div class="stat-box" style="--st-c:#6366f1;--st-sh:rgba(99,102,241,.3)"><span class="stat-icon" style="--st-bg:rgba(99,102,241,.16)">👥</span><div class="stat-num c-p">${stats.total||0}</div><div class="stat-lbl">Total usuários</div></div>
+    <div class="stat-box" style="--st-c:var(--ac);--st-sh:rgba(62,207,142,.3)"><span class="stat-icon" style="--st-bg:var(--ac2)">✅</span><div class="stat-num c-g">${stats.active||0}</div><div class="stat-lbl">Ativos</div></div>
+    <div class="stat-box" style="--st-c:var(--c-au);--st-sh:rgba(251,191,36,.3)"><span class="stat-icon" style="--st-bg:rgba(251,191,36,.16)">🔒</span><div class="stat-num c-y">${stats.admins||0}</div><div class="stat-lbl">Admins</div></div>
+    <div class="stat-box" style="--st-c:var(--bl);--st-sh:rgba(91,156,246,.3)"><span class="stat-icon" style="--st-bg:var(--bl2)">🔑</span><div class="stat-num c-b">${stats.todayLogins||0}</div><div class="stat-lbl">Logins hoje</div></div>`;
+  renderAdminUsers();
+}
+function renderAdminUsers(){
+  const search=(document.getElementById('adminUserSearch').value||'').toLowerCase();
+  const filtered=allAdminUsers.filter(u=>u.name.toLowerCase().includes(search)||u.email.toLowerCase().includes(search));
+  const el=document.getElementById('adminUsersList');
+  if(!filtered.length){el.innerHTML='<div class="empty"><p>Nenhum usuário encontrado</p></div>';return;}
+  el.innerHTML=filtered.map(u=>{
+    const vs=u.videoStats||{};
+    return `<div class="admin-user-row">
+    <div class="admin-user-left">
+      <div class="admin-user-av">${u.name[0].toUpperCase()}</div>
+      <div>
+        <div class="admin-user-name">${u.name} ${u.role==='admin'?'<span class="badge" style="background:var(--ye2);color:var(--ye);margin-left:4px">admin</span>':''}${u.status==='suspended'?'<span class="badge" style="background:var(--rd2);color:var(--rd);margin-left:4px">suspenso</span>':''}</div>
+        <div class="admin-user-email">${u.email} · ${u.loginCount||0} logins · desde ${fmtDT(u.createdAt)}</div>
+        <div style="margin-top:4px">
+          <span class="admin-ustat accs">📱 ${u.accountCount||0} conta${(u.accountCount||0)!==1?'s':''}</span>
+          <span class="admin-ustat posted">✅ ${vs.postado||0}</span>
+          <span class="admin-ustat pend">⏰ ${vs.pendente||0}</span>
+          ${(vs.erro||0)>0?`<span class="admin-ustat err">❌ ${vs.erro}</span>`:''}
+          <span style="font-size:10px;color:var(--tx3)">📦 ${vs.total||0} total</span>
+        </div>
+      </div>
+    </div>
+    <div class="admin-user-right">
+      <select onchange="adminChangePlan('${u.id}',this.value)" style="width:100px"><option value="free" ${u.plan==='free'?'selected':''}>Grátis</option><option value="pro" ${u.plan==='pro'?'selected':''}>Pro</option><option value="premium" ${u.plan==='premium'?'selected':''}>Premium</option></select>
+      <button class="btn btn-sm ${u.role==='admin'?'btn-p':'btn-g'}" onclick="adminToggleRole('${u.id}','${u.role}')">${u.role==='admin'?'🔒 Admin':'👤 User'}</button>
+      <button class="btn btn-sm ${u.status==='active'?'btn-d':'btn-p'}" onclick="adminToggleStatus('${u.id}','${u.status}')">${u.status==='active'?'Suspender':'Ativar'}</button>
+      ${u.id!==currentUser.id?`<button class="btn btn-sm btn-d" onclick="adminDeleteUser('${u.id}')">🗑</button>`:''}
+    </div>
+  </div>`;
+  }).join('');
+}
+async function adminChangePlan(id,plan){await api('/api/admin/users/'+id,{method:'PUT',body:JSON.stringify({plan})});toast('Plano atualizado','ok');loadAdminUsers();}
+async function adminToggleRole(id,current){await api('/api/admin/users/'+id,{method:'PUT',body:JSON.stringify({role:current==='admin'?'user':'admin'})});toast('Role atualizado','ok');loadAdminUsers();}
+async function adminToggleStatus(id,current){await api('/api/admin/users/'+id,{method:'PUT',body:JSON.stringify({status:current==='active'?'suspended':'active'})});toast('Status atualizado','ok');loadAdminUsers();}
+async function adminDeleteUser(id){if(!confirm('Deletar este usuário?'))return;await api('/api/admin/users/'+id,{method:'DELETE'});toast('Deletado','wa');loadAdminUsers();}
+
+async function loadAdminActivity(){
+  const logs = await api('/api/admin/activity');const el=document.getElementById('adminActivityList');
+  if(!logs.length){el.innerHTML='<div class="empty"><p>Nenhuma atividade</p></div>';return;}
+  const ac={login:'🟢',signup:'🔵',profile_update:'✏️',admin_update_user:'⚙️',admin_delete_user:'🗑'};
+  el.innerHTML=logs.map(l=>`<div class="video-item"><div class="video-left"><span class="video-icon">${ac[l.action]||'📋'}</span><div><div class="video-name">${l.action}</div><div class="video-account">${l.email}${l.detail?' · '+l.detail.slice(0,50):''}</div></div></div><div class="video-right"><div class="video-date">${fmtDT(l.created_at)}</div></div></div>`).join('');
+}
+
+function fmtDT(iso){if(!iso)return'—';const d=new Date(iso);return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+function refreshAll(){const a=document.querySelector('.panel.act')?.id?.replace('panel-','');if(a)nav(a);}
+
+let _eaPendingCount=0;
+async function openEditAccount(id){
+  const a=accounts.find(x=>x.id===id);if(!a)return;
+  document.getElementById('ea-id').value=a.id;
+  document.getElementById('ea-label').value=a.label||a.username||'';
+  document.getElementById('ea-st').value=a.startTime||'02:00';
+  document.getElementById('ea-et').value=a.endTime||'23:00';
+  document.getElementById('ea-ppd').value=a.postsPerDay||40;
+  document.getElementById('ea-reschedule').checked=false;
+  // Categoria
+  const eaCat=document.getElementById('ea-cat');if(eaCat){eaCat.innerHTML='<option value="">Sem categoria</option>'+categories.map(c=>'<option value="'+c.id+'"'+(a.categoryId===c.id?' selected':'')+'>'+c.name+'</option>').join('');}
+  // Buscar pendentes da conta
+  try{
+    const vr=await api('/api/videos?accountId='+id+'&status=pendente&limit=99999');
+    _eaPendingCount=(vr.videos||[]).length;
+    const box=document.getElementById('eaRescheduleBox');
+    const info=document.getElementById('eaPendingInfo');
+    if(_eaPendingCount>0){
+      box.style.display='block';
+      info.textContent=_eaPendingCount+' vídeo(s) pendente(s) agendados com a janela atual ('+a.startTime+'–'+a.endTime+', '+a.postsPerDay+'×/dia).';
+    } else {
+      box.style.display='none';
+    }
+  }catch(e){_eaPendingCount=0;document.getElementById('eaRescheduleBox').style.display='none';}
+  updateEaPreview();
+  openModal('modalEditAcc');
+}
+function updateEaPreview(){
+  const ppd=parseInt(document.getElementById('ea-ppd').value)||1;
+  const st=document.getElementById('ea-st').value||'02:00';
+  const et=document.getElementById('ea-et').value||'23:00';
+  const[sh,sm]=st.split(':').map(Number);const[eh,em]=et.split(':').map(Number);
+  const w=(eh*60+em)-(sh*60+sm);
+  if(w<=0){document.getElementById('eaIntervalPreview').textContent='⚠️ Janela inválida';return;}
+  const iv=ppd>1?Math.floor(w/(ppd-1)):w;
+  const daysFor=_eaPendingCount>0?Math.ceil(_eaPendingCount/ppd):null;
+  document.getElementById('eaIntervalPreview').textContent=
+    'Intervalo: '+iv+'min · Janela: '+Math.floor(w/60)+'h'+String(w%60).padStart(2,'0')+'min'
+    +(daysFor?' · '+_eaPendingCount+' pendentes = ~'+daysFor+' dia(s) para zerar':'');
+}
+async function saveEditAccount(){
+  const id=document.getElementById('ea-id').value;
+  const label=document.getElementById('ea-label').value.trim();
+  const startTime=document.getElementById('ea-st').value;
+  const endTime=document.getElementById('ea-et').value;
+  const postsPerDay=parseInt(document.getElementById('ea-ppd').value)||40;
+  const doReschedule=document.getElementById('ea-reschedule').checked;
+  if(!id){toast('Erro: conta não encontrada','er');return;}
+  const btn=document.getElementById('eaSaveBtn');btn.disabled=true;btn.textContent='Salvando...';
+  try{
+    // Salvar configs
+    const eaCatEl=document.getElementById('ea-cat');const categoryId=eaCatEl?eaCatEl.value||null:undefined;
+    const r=await api('/api/accounts/'+id,{method:'PUT',body:JSON.stringify({label,startTime,endTime,postsPerDay,categoryId})});
+    if(!r.success){toast('Erro: '+(r.error||'desconhecido'),'er');return;}
+    // Reagendar se solicitado
+    if(doReschedule&&_eaPendingCount>0){
+      btn.textContent='Reagendando...';
+      const rr=await api('/api/accounts/'+id+'/reschedule',{method:'POST',body:JSON.stringify({postsPerDay,startTime,endTime})});
+      if(rr.success){
+        toast('✅ Conta salva + '+rr.rescheduled+' vídeos reagendados!','ok');
+      } else {
+        toast('✅ Conta salva, mas erro ao reagendar: '+(rr.error||''),'wa');
+      }
+    } else {
+      toast('✅ Conta atualizada!','ok');
+    }
+    closeModal('modalEditAcc');loadAccounts();
+  }finally{btn.disabled=false;btn.textContent='💾 Salvar alterações';}
+}
+
+// ── POLLING DE VÍDEOS PROCESSANDO ────────────────────────────────
+let _pollTimer=null, _pollIds=new Set();
+function startProcessingPoll(ids){
+  ids.forEach(id=>_pollIds.add(id));
+  if(_pollIds.size>0&&!_pollTimer){
+    _pollTimer=setInterval(pollProcessing,3000);
+  }
+}
+async function pollProcessing(){
+  if(!_pollIds.size){clearInterval(_pollTimer);_pollTimer=null;return;}
+  const toRemove=[];
+  for(const id of _pollIds){
+    try{
+      const r=await api('/api/videos/'+id+'/status');
+      if(!r||r.error){toRemove.push(id);continue;}
+      const el=document.getElementById('vi-'+id);
+      if(!el){toRemove.push(id);continue;}
+      if(r.status!=='processando'){
+        // Terminou — recarregar lista completa
+        toRemove.push(id);
+        loadVideos();
+        if(r.status==='postado') toast('✅ Vídeo publicado!','ok');
+        if(r.status==='erro') toast('❌ Erro: '+(r.errorMsg||'').slice(0,60),'er');
+        continue;
+      }
+      // Ainda processando — atualizar barra inline sem recarregar lista
+      const raw=r.errorMsg||'Processando...';
+      const m=raw.match(/^\[(\d+)%\]\s*(.*)$/);
+      const pct=m?parseInt(m[1]):5;
+      const msg=m?m[2]:raw;
+      const fill=el.querySelector('.video-progress-fill');
+      const msgEl=el.querySelector('.video-proc-msg');
+      if(fill) fill.style.width=pct+'%';
+      if(msgEl) msgEl.textContent='⟳ '+msg.slice(0,80);
+    }catch(e){}
+  }
+  toRemove.forEach(id=>_pollIds.delete(id));
+  if(!_pollIds.size){clearInterval(_pollTimer);_pollTimer=null;}
+}
+
+// ── CATEGORIAS ──────────────────────────────────────────────────────────
+async function loadCategories() {
+  categories = await api('/api/categories').catch(() => []);
+  renderCatList();
+  // Atualizar select no modal de add conta
+  const sel = document.getElementById('aa-cat');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Sem categoria</option>' +
+      categories.map(c => '<option value="' + c.id + '"' + (c.id===cur?' selected':'') + '>' + c.name + '</option>').join('');
+  }
+  // Atualizar filtro de categoria nos vídeos
+  const catSel = document.getElementById('catFilter');
+  if (catSel) {
+    const cur = catSel.value;
+    catSel.innerHTML = '<option value="all">Todas categorias</option>' +
+      categories.map(c => '<option value="' + c.id + '"' + (c.id===cur?' selected':'') + '>' + c.name + '</option>').join('');
+  }
+  // Atualizar filtro de categoria no dashboard
+  const dashCatSel2 = document.getElementById('dashCatFilter');
+  if (dashCatSel2) {
+    const cur2 = dashCatSel2.value;
+    dashCatSel2.innerHTML = '<option value="all">Todas categorias</option>' +
+      categories.map(c => '<option value="' + c.id + '"' + (c.id===cur2?' selected':'') + '>' + c.name + '</option>').join('');
   }
 }
 
-const publishing = new Set();
-async function tick() {
-  try {
-    const due = await q(`SELECT v.*, a.ig_user_id, a.access_token, a.username, a.graph_host
-      FROM videos v JOIN accounts a ON a.id = v.account_id
-      WHERE v.status='pendente' AND v.scheduled_for <= now()
-      ORDER BY v.scheduled_for LIMIT 3`);
-    for (const v of due.rows) {
-      if (publishing.has(v.id)) continue;
-      publishing.add(v.id);
-      await q(`UPDATE videos SET status='processando', error_msg='[5%] Iniciando...' WHERE id=$1`, [v.id]);
-      publishVideo(v).finally(() => publishing.delete(v.id));
-    }
-  } catch (e) { console.error('tick:', e.message); }
+function renderCatList() {
+  const el = document.getElementById('catList');
+  if (!el) return;
+  if (!categories.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--tx3);padding:4px 0">Nenhuma categoria criada</div>';
+    return;
+  }
+  el.innerHTML = categories.map(function(c) {
+    return '<div class="cat-item">' +
+      '<div class="cat-dot" style="background:' + c.color + '"></div>' +
+      '<span class="cat-name">' + c.name + '</span>' +
+      '<div class="cat-actions">' +
+      '<button class="icon-btn" title="Renomear" onclick="renameCategoryById(' + JSON.stringify(c.id) + ')">✏️</button>' +
+      '<button class="icon-btn danger" title="Excluir" onclick="deleteCategoryById(' + JSON.stringify(c.id) + ')">✕</button>' +
+      '</div></div>';
+  }).join('');
 }
 
-// ═══ STATIC + BOOT ══════════════════════════════════════════════
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'landing.html')));
-app.use(express.static(__dirname, { index: false }));
-app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+async function createCategory() {
+  const name = document.getElementById('cat-name-input').value.trim();
+  const color = document.getElementById('cat-color-input').value;
+  if (!name) { toast('Digite um nome', 'er'); return; }
+  await api('/api/categories', { method: 'POST', body: JSON.stringify({ name, color }) });
+  document.getElementById('cat-name-input').value = '';
+  await loadCategories();
+  toast('✅ Categoria "' + name + '" criada!', 'ok');
+}
 
-migrate()
-  .then(() => {
-    app.listen(PORT, () => console.log(`🚀 AspaTools rodando na porta ${PORT} (TZ: ${TZ})`));
-    setInterval(tick, 30000);
-    setTimeout(tick, 5000);
-  })
-  .catch(e => { console.error('Erro nas migrações:', e); process.exit(1); });
+async function renameCategoryById(id) {
+  const c = categories.find(x => x.id === id);
+  if (!c) return;
+  const name = prompt('Novo nome:', c.name);
+  if (!name || !name.trim()) return;
+  await api('/api/categories/' + id, { method: 'PUT', body: JSON.stringify({ name: name.trim(), color: c.color }) });
+  await loadCategories();
+}
+
+async function deleteCategoryById(id) {
+  const c = categories.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm('Excluir categoria "' + c.name + '"? As contas associadas ficarão sem categoria.')) return;
+  await api('/api/categories/' + id, { method: 'DELETE' });
+  await loadCategories();
+  toast('Categoria excluída', 'wa');
+}
+
+async function renameCategory(id, currentName, currentColor) {
+  const name = prompt('Novo nome:', currentName);
+  if (!name || !name.trim()) return;
+  await api('/api/categories/' + id, { method: 'PUT', body: JSON.stringify({ name: name.trim(), color: currentColor }) });
+  await loadCategories();
+}
+
+async function deleteCategory(id, name) {
+  if (!confirm('Excluir categoria "' + name + '"? As contas associadas ficarão sem categoria.')) return;
+  await api('/api/categories/' + id, { method: 'DELETE' });
+  await loadCategories();
+  toast('Categoria excluída', 'wa');
+}
+
+function getCatTag(categoryId) {
+  if (!categoryId) return '';
+  const c = categories.find(x => x.id === categoryId);
+  if (!c) return '';
+  return '<span class="cat-tag" style="background:' + c.color + '22;color:' + c.color + ';border:1px solid ' + c.color + '44">' + c.name + '</span>';
+}
+
+async function rescheduleAcc(id, name) {
+  if (!confirm('Reagendar todos os vídeos pendentes de @' + name + ' com o intervalo correto?')) return;
+  toast('Reagendando...', 'in');
+  const r = await api('/api/accounts/' + id + '/reschedule', { method: 'POST', body: JSON.stringify({}) });
+  if (r.error) { toast('Erro: ' + r.error, 'er'); return; }
+  toast('✅ ' + (r.rescheduled || 0) + ' vídeos reagendados!', 'ok');
+  loadDash();
+}
+
+function renderDailySchedule(dailySchedule) {
+  const ds = dailySchedule || {};
+  const days = Object.keys(ds).sort();
+  if (!days.length) return '';
+  const maxCnt = Math.max(...days.map(d => ds[d]), 1);
+  const rows = days.map(d => {
+    const cnt = ds[d];
+    const pct = Math.round(cnt / maxCnt * 100);
+    const dateStr = new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit', weekday:'short'});
+    return '<div class="dash-daily-row">'
+      + '<span class="dash-daily-date">' + dateStr + '</span>'
+      + '<div class="dash-daily-bar"><div class="dash-daily-fill" style="width:' + pct + '%"></div></div>'
+      + '<span class="dash-daily-cnt">' + cnt + '</span>'
+      + '</div>';
+  }).join('');
+  return '<div class="dash-daily">'
+    + '<div class="dash-daily-title">📅 Agendados por dia</div>'
+    + '<div class="dash-daily-grid">' + rows + '</div>'
+    + '</div>';
+}
+
+function copyVideoUrl(url, btn) {
+  if (!url) { toast('URL não disponível', 'er'); return; }
+  navigator.clipboard.writeText(url).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓';
+    btn.style.color = 'var(--gr)';
+    toast('URL copiada!', 'ok');
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
+  }).catch(() => {
+    // fallback para browsers sem clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('URL copiada!', 'ok');
+  });
+}
+
+async function appInit(){
+  // Resetar estado ao entrar — evita vazar dados de sessão anterior
+  accounts=[];categories=[];uploadQueue=[];
+  updateSbAccounts();
+  renderQueue();
+  const data=await api('/api/accounts');accounts=data;updateSbAccounts();
+  await loadCategories();
+  await loadCaptionPresets();
+  loadDash();
+}
+setInterval(()=>{if(!currentUser)return;const a=document.querySelector('.panel.act')?.id;if(a==='panel-dash')loadDash();if(a==='panel-videos')loadVideos();},30000);
+</script>
+
+
+<!-- MODAL: Editar Conta -->
+<div class="modal-bg" id="modalEditAcc">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('modalEditAcc')">✕</button>
+    <h3>✏️ Editar Conta</h3>
+    <input type="hidden" id="ea-id">
+    <div class="field"><label>Label / Apelido</label><input id="ea-label" placeholder="Nome de identificação"></div>
+    <div class="field"><label>Categoria</label><select id="ea-cat"><option value="">Sem categoria</option></select></div>
+    <div class="r2">
+      <div class="field"><label>Início da janela</label><input type="time" id="ea-st" value="02:00" oninput="updateEaPreview()"></div>
+      <div class="field"><label>Fim da janela</label><input type="time" id="ea-et" value="23:00" oninput="updateEaPreview()"></div>
+    </div>
+    <div class="field"><label>Vídeos por dia</label><input type="number" id="ea-ppd" min="1" max="200" value="40" oninput="updateEaPreview()"></div>
+    <div id="eaIntervalPreview" class="info-box bl" style="margin-bottom:12px"></div>
+    <div id="eaRescheduleBox" style="display:none">
+      <div style="border:1px solid var(--b1);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--s2)">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--tx2)">📅 Vídeos pendentes</div>
+        <div id="eaPendingInfo" style="font-size:11px;color:var(--tx3);margin-bottom:10px"></div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:var(--bg);border-radius:8px;border:1px solid var(--b1)" id="eaRescheduleLbl">
+          <input type="checkbox" id="ea-reschedule" style="width:16px;height:16px;accent-color:var(--p2)">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--tx1)">Reagendar vídeos pendentes</div>
+            <div style="font-size:10px;color:var(--tx3);margin-top:1px">Redistribui os vídeos na nova janela, a partir de amanhã</div>
+          </div>
+        </label>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-g" onclick="closeModal('modalEditAcc')">Cancelar</button>
+      <button class="btn btn-p" id="eaSaveBtn" onclick="saveEditAccount()">💾 Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Legenda -->
+<div class="modal-bg" id="modalCaption">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('modalCaption')">✕</button>
+    <h3 id="capModalTitle">Nova Legenda</h3>
+    <div class="field"><label>Nome</label><input id="cap-name" placeholder="Ex: Motivacional, Produto X..."></div>
+    <div class="field"><label>Legenda</label><textarea id="cap-cap" rows="4" placeholder="Texto que aparecerá no post..."></textarea></div>
+    <div class="field"><label>Hashtags</label><textarea id="cap-hash" rows="2" placeholder="reels instagram viral fyp"></textarea><div class="hint">Com ou sem #</div></div>
+    <div class="btn-row">
+      <button class="btn btn-g" onclick="closeModal('modalCaption')">Cancelar</button>
+      <button class="btn btn-p" onclick="saveCaption()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
