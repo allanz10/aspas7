@@ -908,6 +908,7 @@ async function tick() {
 }
 
 // ═══ STATIC + BOOT ══════════════════════════════════════════════
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'landing.html')));
 app.use(express.static(__dirname, { index: false }));
 app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
