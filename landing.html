@@ -9,136 +9,109 @@
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0d0b13; --p1:#151220; --p2:#1b1729; --p3:#231d34;
-  --ln:#2a2338; --ln2:#372e49;
-  --tx:#f1eefc; --tx1:#a99fc2; --tx2:#6f6685; --tx3:#3a3450;
-  --am:#a78bfa; --am2:rgba(139,92,246,.14);
-  --grad:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);
-  --tl:#3ecf8e; --tl2:rgba(62,207,142,.12);
-  --disp:'Geist',system-ui,sans-serif;
-  --body:'Geist',system-ui,sans-serif;
-  --mono:'Geist',system-ui,sans-serif;
+  --bg:#121110; --s1:#1c1a19; --s2:#242220; --s3:#2d2a27;
+  --b1:#34302c; --b2:#433e38;
+  --tx:#f2efec; --tx1:#a39d95; --tx2:#6b665f; --tx3:#38342f;
+  --grad:linear-gradient(135deg,#ea580c,#f97316 55%,#fb923c);
 }
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--tx);font-family:var(--body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 a{color:inherit;text-decoration:none}
-.wrap{max-width:1160px;margin:0 auto;padding:0 24px}
-.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--am);display:flex;align-items:center;gap:8px}
-.eyebrow::before{content:'';width:16px;height:1px;background:var(--am)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+.bg-fx{position:fixed;inset:0;z-index:-1;background:
+  radial-gradient(ellipse 900px 500px at 50% -10%, rgba(249,115,22,.22), transparent 60%),
+  radial-gradient(circle, rgba(249,115,22,.10) 1px, transparent 1px);
+  background-size:auto, 26px 26px;
+}
 
-/* ── NAV ──────────────────────────────────── */
-nav{position:sticky;top:0;z-index:30;background:rgba(13,11,19,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--ln)}
-nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
-.logo{font-family:var(--disp);font-size:17px;font-weight:700;letter-spacing:-.2px;display:flex;align-items:center;gap:9px}
-.logo-mark{width:24px;height:24px;border-radius:6px;border:1px solid var(--ln2);display:flex;align-items:center;justify-content:center;font-size:12px;background:var(--p2)}
-.nav-links{display:flex;align-items:center;gap:26px;font-size:13px;color:var(--tx1)}
+/* ── NAVBAR ───────────────────────────────── */
+nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);background:rgba(13,11,19,.75);border-bottom:1px solid var(--b1)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:66px}
+.logo{font-size:18px;font-weight:700;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+.logo-icon{width:26px;height:26px;border-radius:7px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 2px 10px -2px rgba(249,115,22,.5)}
+.nav-links{display:flex;align-items:center;gap:28px;font-size:13px;color:var(--tx1)}
 .nav-links a:hover{color:var(--tx)}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;border:1px solid transparent;font-family:var(--body);white-space:nowrap}
-.btn-p{background:var(--grad);color:#fff;box-shadow:0 4px 16px -4px rgba(139,92,246,.5)}
-.btn-p:hover{filter:brightness(1.08);box-shadow:0 6px 22px -4px rgba(139,92,246,.65);transform:translateY(-1px)}
-.btn-g{background:transparent;color:var(--tx);border-color:var(--ln2)}
-.btn-g:hover{background:var(--p2);border-color:var(--tx2)}
-.btn-lg{padding:13px 24px;font-size:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;border:none;font-family:'Geist',sans-serif;white-space:nowrap}
+.btn-p{background:var(--grad);color:#fff;box-shadow:0 4px 16px -4px rgba(249,115,22,.5)}
+.btn-p:hover{filter:brightness(1.08);box-shadow:0 6px 22px -4px rgba(249,115,22,.65);transform:translateY(-1px)}
+.btn-g{background:var(--s2);color:var(--tx);border:1px solid var(--b1)}
+.btn-g:hover{border-color:var(--b2);background:var(--s3)}
+.btn-lg{padding:14px 26px;font-size:14px}
 
-/* ── HERO — split, asymmetric ────────────── */
-.hero{padding:76px 0 90px;border-bottom:1px solid var(--ln)}
-.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
-h1.hero-h{font-family:var(--disp);font-size:46px;font-weight:700;letter-spacing:-1.2px;line-height:1.1;margin:18px 0 20px}
-h1.hero-h em{font-style:normal;color:var(--am)}
-.hero-sub{font-size:15.5px;color:var(--tx1);max-width:460px;margin-bottom:30px}
-.hero-ctas{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px}
-.hero-meta{display:flex;gap:22px;font-size:12.5px;color:var(--tx2);font-family:var(--mono)}
-.hero-meta b{color:var(--tx1);font-weight:500}
+/* ── HERO ─────────────────────────────────── */
+.hero{padding:96px 0 70px;text-align:center;position:relative}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:6px 16px;border-radius:100px;background:var(--s2);border:1px solid var(--b1);font-size:12px;color:var(--tx1);margin-bottom:28px}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:#fb923c}
+h1.hero-h{font-size:52px;font-weight:800;letter-spacing:-1.5px;line-height:1.12;margin-bottom:22px}
+.hero-h .g1{background:linear-gradient(90deg,#fb923c,#fdba74);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-h .g2{background:linear-gradient(90deg,#78716c,#fb923c);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-sub{font-size:16px;color:var(--tx1);max-width:600px;margin:0 auto 34px}
+.hero-stats{display:flex;justify-content:center;gap:28px;flex-wrap:wrap;font-size:13px;color:var(--tx1);margin-bottom:38px}
+.hero-stats span{display:flex;align-items:center;gap:7px}
+.hero-stats .ic{width:24px;height:24px;border-radius:6px;background:var(--s2);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:11px}
+.hero-ctas{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:34px}
+.hero-proof{display:flex;justify-content:center;align-items:center;gap:12px;font-size:13px;color:var(--tx2)}
+.avatars{display:flex}
+.avatars span{width:28px;height:28px;border-radius:50%;border:2px solid var(--bg);margin-left:-8px;background:var(--grad)}
+.avatars span:first-child{margin-left:0}
+.hero-proof strong{color:var(--tx)}
+.hero-divider{height:1px;background:linear-gradient(90deg,transparent,var(--b1),transparent);margin-top:56px}
 
-/* Signature visual: live queue / clock timeline */
-.queue-card{background:var(--p1);border:1px solid var(--ln);border-radius:16px;padding:22px;position:relative;overflow:hidden}
-.queue-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--am),transparent)}
-.queue-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
-.queue-head-l{font-family:var(--mono);font-size:11.5px;color:var(--tx2);letter-spacing:.04em}
-.queue-live{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--tl)}
-.queue-live .d{width:6px;height:6px;border-radius:50%;background:var(--tl);animation:pulse 1.8s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-.qtimeline{position:relative;padding-left:52px}
-.qtimeline::before{content:'';position:absolute;left:19px;top:6px;bottom:6px;width:1px;background:var(--ln2)}
-.qrow{position:relative;display:flex;align-items:center;gap:12px;padding:10px 0}
-.qtime{position:absolute;left:-52px;width:44px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--tx2)}
-.qdot{position:absolute;left:15px;width:9px;height:9px;border-radius:50%;background:var(--p3);border:2px solid var(--ln2);z-index:2}
-.qrow.done .qdot{background:var(--tl);border-color:var(--tl)}
-.qrow.now .qdot{background:var(--am);border-color:var(--am);box-shadow:0 0 0 4px var(--am2)}
-.qthumb{width:34px;height:34px;border-radius:8px;background:var(--p3);border:1px solid var(--ln2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px}
-.qinfo{flex:1;min-width:0}
-.qacc{font-size:12.5px;font-weight:600;color:var(--tx)}
-.qstat{font-size:11px;color:var(--tx2)}
-.qrow.done .qstat{color:var(--tl)}
-.qrow.now .qstat{color:var(--am)}
-.qbadge{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:100px;border:1px solid var(--ln2);color:var(--tx2)}
+/* ── SECTIONS ─────────────────────────────── */
+section{padding:88px 0}
+.sec-label{font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#fb923c;text-align:center;margin-bottom:12px}
+.sec-title{font-size:34px;font-weight:800;letter-spacing:-.8px;text-align:center;margin-bottom:14px}
+.sec-sub{font-size:15px;color:var(--tx1);text-align:center;max-width:560px;margin:0 auto 56px}
 
-/* ── SECTION shells ───────────────────────── */
-section{padding:84px 0;border-bottom:1px solid var(--ln)}
-.sec-head{display:grid;grid-template-columns:1fr auto;align-items:end;gap:24px;margin-bottom:44px}
-.sec-title{font-family:var(--disp);font-size:30px;font-weight:700;letter-spacing:-.6px;margin-top:12px}
-.sec-sub{font-size:14.5px;color:var(--tx1);max-width:420px}
+/* ── FEATURES ─────────────────────────────── */
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.feat-card{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:26px;transition:transform .15s,border-color .15s}
+.feat-card:hover{transform:translateY(-3px);border-color:var(--b2)}
+.feat-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px;margin-bottom:16px}
+.feat-card h3{font-size:16px;font-weight:700;margin-bottom:8px;letter-spacing:-.2px}
+.feat-card p{font-size:13px;color:var(--tx1);line-height:1.6}
 
-/* ── FEATURES — bento, uneven ─────────────── */
-.bento{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
-.b-card{background:var(--p1);border:1px solid var(--ln);border-radius:14px;padding:24px;transition:border-color .15s,transform .15s}
-.b-card:hover{border-color:var(--ln2);transform:translateY(-2px)}
-.b-card.c4{grid-column:span 4}.b-card.c2{grid-column:span 2}.b-card.c3{grid-column:span 3}
-.b-num{font-family:var(--mono);font-size:11px;color:var(--tx2);margin-bottom:14px}
-.b-card h3{font-family:var(--disp);font-size:17px;font-weight:600;margin-bottom:9px;letter-spacing:-.2px}
-.b-card p{font-size:13px;color:var(--tx1);line-height:1.65}
-.b-card.hl{background:linear-gradient(160deg,var(--p2),var(--p1));border-color:var(--ln2)}
-.b-tag{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--am);background:var(--am2);border:1px solid rgba(139,92,246,.3);padding:3px 8px;border-radius:5px;margin-bottom:14px}
-
-/* ── PRICING — comparison table ───────────── */
-.ptable{width:100%;border-collapse:collapse;background:var(--p1);border:1px solid var(--ln);border-radius:14px;overflow:hidden}
-.ptable th,.ptable td{padding:16px 20px;text-align:left;border-bottom:1px solid var(--ln)}
-.ptable thead th{background:var(--p2);vertical-align:top}
-.ptable .pname{font-family:var(--disp);font-size:16px;font-weight:700}
-.ptable .pdesc{font-size:11.5px;color:var(--tx2);font-weight:400;margin-top:3px}
-.ptable .pprice{font-size:24px;font-weight:800;margin-top:10px;font-family:var(--disp)}
-.ptable .pprice .cur{font-size:12px;color:var(--tx1);font-weight:600;margin-right:2px}
-.ptable .pprice .per{font-size:11px;color:var(--tx2);font-weight:400}
-.ptable th.pop{background:linear-gradient(160deg,rgba(139,92,246,.12),var(--p2));position:relative}
-.ptable th.pop::after{content:'MAIS ESCOLHIDO';position:absolute;top:8px;right:12px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--am)}
-.ptable td:first-child,.ptable th:first-child{color:var(--tx1);font-size:13px;width:34%}
-.ptable td{font-size:13px;color:var(--tx1);text-align:left}
-.ptable td.yes::before,.ptable th .btn{margin-top:14px}
-.check{color:var(--tl);font-weight:700}
-.dash{color:var(--tx3)}
-.ptable tbody tr:last-child td{border-bottom:none}
-.ptable-wrap{overflow-x:auto}
+/* ── PRICING ──────────────────────────────── */
+.plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:960px;margin:0 auto}
+.plan-card{background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:28px;position:relative;display:flex;flex-direction:column;transition:transform .15s}
+.plan-card.pop{border-color:#f97316;box-shadow:0 0 0 1px #f97316,0 12px 40px -14px rgba(249,115,22,.4)}
+.plan-card:hover{transform:translateY(-3px)}
+.plan-pop-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;padding:5px 14px;border-radius:100px;background:var(--grad);color:#fff;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.plan-tag{font-size:15px;font-weight:700;margin-bottom:3px}
+.plan-desc{font-size:12px;color:var(--tx2);margin-bottom:18px}
+.plan-price{font-size:36px;font-weight:800;letter-spacing:-1px;display:flex;align-items:baseline;gap:2px}
+.plan-price .cur{font-size:14px;font-weight:600;color:var(--tx1);margin-right:2px}
+.plan-price .cents{font-size:16px;font-weight:600;color:var(--tx1)}
+.plan-note{font-size:11px;color:var(--tx2);margin-bottom:20px}
+.plan-card ul{list-style:none;margin-top:20px}
+.plan-card li{font-size:13px;color:var(--tx1);padding:6px 0;display:flex;align-items:center;gap:8px}
+.plan-card li::before{content:'✓';color:#fb923c;font-weight:700}
 
 /* ── FINAL CTA ────────────────────────────── */
-.cta-final{border-bottom:none;padding:100px 0}
-.cta-box{background:var(--p1);border:1px solid var(--ln);border-radius:20px;padding:56px;display:grid;grid-template-columns:1.2fr .8fr;gap:40px;align-items:center;position:relative;overflow:hidden}
-.cta-box::before{content:'';position:absolute;top:-40%;right:-10%;width:340px;height:340px;background:radial-gradient(circle,var(--am2),transparent 70%)}
-.cta-box h2{font-family:var(--disp);font-size:30px;font-weight:700;letter-spacing:-.7px;line-height:1.2;margin-bottom:14px;position:relative}
-.cta-box p{color:var(--tx1);font-size:14.5px;margin-bottom:24px;max-width:440px;position:relative}
-.cta-list{display:flex;flex-direction:column;gap:12px;position:relative}
-.cta-list div{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--tx1);font-family:var(--mono)}
-.cta-list .ico{width:26px;height:26px;border-radius:6px;background:var(--p3);border:1px solid var(--ln2);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.cta-final{text-align:center;padding:100px 0}
+.cta-final h2{font-size:36px;font-weight:800;letter-spacing:-1px;line-height:1.2;margin-bottom:18px}
+.cta-final h2 .g{background:linear-gradient(90deg,#fdba74,#f97316);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cta-final p{font-size:15px;color:var(--tx1);max-width:560px;margin:0 auto 30px}
+.trust{display:flex;justify-content:center;gap:24px;flex-wrap:wrap;font-size:13px;color:var(--tx1);margin-bottom:34px}
+.trust span{display:flex;align-items:center;gap:6px}
 
-footer{padding:30px 0;text-align:center;font-size:12px;color:var(--tx3)}
+footer{border-top:1px solid var(--b1);padding:32px 0;text-align:center;font-size:12px;color:var(--tx3)}
 
-@media(max-width:900px){
-  .hero .wrap{grid-template-columns:1fr}
-  .bento{grid-template-columns:1fr}
-  .b-card.c4,.b-card.c2,.b-card.c3{grid-column:span 1}
-  h1.hero-h{font-size:34px}
-  .sec-title{font-size:24px}
+@media(max-width:860px){
+  .feat-grid,.plans-grid{grid-template-columns:1fr}
+  h1.hero-h{font-size:36px}
+  .sec-title{font-size:26px}
   .nav-links{display:none}
-  .cta-box{grid-template-columns:1fr;padding:32px}
-  .sec-head{grid-template-columns:1fr}
-  .ptable .pdesc{display:none}
+  .hero-stats{gap:16px;font-size:12px}
 }
 </style>
 </head>
 <body>
+<div class="bg-fx"></div>
 
 <nav>
   <div class="wrap">
-    <div class="logo"><div class="logo-mark">⏱</div>AspaTools</div>
+    <div class="logo"><div class="logo-icon">✂️</div>AspaTools</div>
     <div class="nav-links">
       <a href="#recursos">Recursos</a>
       <a href="#planos">Planos</a>
@@ -147,104 +120,61 @@ footer{padding:30px 0;text-align:center;font-size:12px;color:var(--tx3)}
   </div>
 </nav>
 
-<header class="hero">
-  <div class="wrap">
-    <div>
-      <div class="eyebrow">Automação de publicação · API oficial da Meta</div>
-      <h1 class="hero-h">Cada Reel publicado <em>na hora exata</em> que você definiu.</h1>
-      <p class="hero-sub">Envie seus vídeos uma vez. O AspaTools organiza a fila, calcula o intervalo ideal e publica sozinho — direto pela API da Meta, sem robôs de terceiros.</p>
-      <div class="hero-ctas">
-        <a href="/app?signup=1" class="btn btn-p btn-lg">Começar agora →</a>
-        <a href="/app" class="btn btn-g btn-lg">Já tenho conta</a>
-      </div>
-      <div class="hero-meta">
-        <span><b>+40</b> posts/dia por conta</span>
-        <span><b>0</b> intervenção manual</span>
-        <span><b>100%</b> API oficial</span>
-      </div>
-    </div>
-
-    <div class="queue-card">
-      <div class="queue-head">
-        <div class="queue-head-l">FILA · @sua_conta</div>
-        <div class="queue-live"><span class="d"></span>publicando ao vivo</div>
-      </div>
-      <div class="qtimeline">
-        <div class="qrow done">
-          <span class="qtime">09:40</span><span class="qdot"></span>
-          <div class="qthumb">🎬</div>
-          <div class="qinfo"><div class="qacc">reel_promo_03.mp4</div><div class="qstat">publicado</div></div>
-        </div>
-        <div class="qrow done">
-          <span class="qtime">11:10</span><span class="qdot"></span>
-          <div class="qthumb">🎬</div>
-          <div class="qinfo"><div class="qacc">reel_bastidores.mp4</div><div class="qstat">publicado</div></div>
-        </div>
-        <div class="qrow now">
-          <span class="qtime">12:35</span><span class="qdot"></span>
-          <div class="qthumb">🎬</div>
-          <div class="qinfo"><div class="qacc">reel_lancamento.mp4</div><div class="qstat">publicando agora…</div></div>
-          <div class="qbadge">agora</div>
-        </div>
-        <div class="qrow">
-          <span class="qtime">14:05</span><span class="qdot"></span>
-          <div class="qthumb">🎬</div>
-          <div class="qinfo"><div class="qacc">reel_depoimento.mp4</div><div class="qstat">na fila</div></div>
-        </div>
-        <div class="qrow">
-          <span class="qtime">15:40</span><span class="qdot"></span>
-          <div class="qthumb">🎬</div>
-          <div class="qinfo"><div class="qacc">reel_dicas_02.mp4</div><div class="qstat">na fila</div></div>
-        </div>
-      </div>
-    </div>
+<header class="hero wrap">
+  <div class="pill"><span class="dot"></span>Plataforma de gestão de conteúdo para Instagram</div>
+  <h1 class="hero-h">Seu conteúdo, <span class="g1">no lugar certo</span>,<br>na hora <span class="g2">certa</span>.</h1>
+  <p class="hero-sub">Planeje, agende e publique todo o seu conteúdo do Instagram de forma simples e visual. Mais organização, mais consistência, mais resultados.</p>
+  <div class="hero-stats">
+    <span><span class="ic">📅</span>Vídeos agendados em minutos</span>
+    <span><span class="ic">📊</span>Dashboard intuitivo</span>
+    <span><span class="ic">👥</span>Publicação 100% automática</span>
   </div>
+  <div class="hero-ctas">
+    <a href="/app?signup=1" class="btn btn-p btn-lg">Começar agora →</a>
+    <a href="/app" class="btn btn-g btn-lg">Já tenho conta — Entrar</a>
+  </div>
+  <div class="hero-proof">
+    <div class="avatars"><span></span><span></span><span></span><span></span></div>
+    Junte-se a quem já usa o <strong>AspaTools</strong> pra crescer no Instagram
+  </div>
+  <div class="hero-divider"></div>
 </header>
 
 <section id="recursos">
   <div class="wrap">
-    <div class="sec-head">
-      <div>
-        <div class="eyebrow">Recursos</div>
-        <h2 class="sec-title">O que roda por trás da sua fila de publicação</h2>
-      </div>
-      <p class="sec-sub">Tudo pensado para quem publica em volume e não quer depender de robôs de terceiros ou planilhas.</p>
-    </div>
-    <div class="bento">
-      <div class="b-card c4 hl">
-        <div class="b-tag">core</div>
+    <div class="sec-label">Recursos</div>
+    <h2 class="sec-title">Por que criadores escolhem o AspaTools?</h2>
+    <p class="sec-sub">Uma plataforma completa para gerenciar, agendar e publicar seu conteúdo no Instagram de forma simples e profissional.</p>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(249,115,22,.16);color:#fb923c">📅</div>
         <h3>Agendamento automático</h3>
-        <p>Envie seus vídeos uma vez e deixe o AspaTools publicar sozinho, no horário certo, todos os dias — sem depender de você estar online.</p>
+        <p>Envie seus vídeos uma vez e deixe o AspaTools publicar sozinho, no horário certo, todos os dias.</p>
       </div>
-      <div class="b-card c2">
-        <div class="b-num">01</div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(120,113,108,.16);color:#a8a29e">📱</div>
         <h3>Múltiplas contas</h3>
-        <p>Gerencie várias contas em um só lugar, cada uma com sua própria janela de horários.</p>
+        <p>Gerencie várias contas do Instagram em um só lugar, cada uma com sua própria janela de horários.</p>
       </div>
-      <div class="b-card c2">
-        <div class="b-num">02</div>
-        <h3>Publicação nativa</h3>
-        <p>Integração direta com a API oficial da Meta. Sem risco de bloqueio pra sua conta.</p>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(251,146,60,.16);color:#fdba74">🎬</div>
+        <h3>Publicação nativa de Reels</h3>
+        <p>Integração direta com a API oficial da Meta — sem robôs de terceiros, sem risco pra sua conta.</p>
       </div>
-      <div class="b-card c2">
-        <div class="b-num">03</div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(56,189,248,.16);color:#38bdf8">⏰</div>
         <h3>Intervalo inteligente</h3>
-        <p>Defina posts por dia e o AspaTools calcula o espaçamento ideal automaticamente.</p>
+        <p>Defina quantos posts por dia e o AspaTools calcula o intervalo ideal entre publicações automaticamente.</p>
       </div>
-      <div class="b-card c4">
-        <div class="b-num">04</div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(16,185,129,.16);color:#34d399">💬</div>
         <h3>Legendas pré-definidas</h3>
-        <p>Salve as legendas e hashtags que você mais usa, e aplique com um clique na hora de agendar — sem retrabalho.</p>
+        <p>Salve legendas e hashtags que você mais usa, e aplique com um clique na hora de agendar.</p>
       </div>
-      <div class="b-card c3">
-        <div class="b-num">05</div>
+      <div class="feat-card">
+        <div class="feat-icon" style="background:rgba(251,191,36,.16);color:#fbbf24">📊</div>
         <h3>Dashboard em tempo real</h3>
-        <p>Acompanhe postados, pendentes e erros de cada conta, com a fila sempre visível.</p>
-      </div>
-      <div class="b-card c3">
-        <div class="b-num">06</div>
-        <h3>Reagendamento em 1 clique</h3>
-        <p>Mudou a janela de horários? Redistribua os vídeos pendentes automaticamente.</p>
+        <p>Acompanhe postados, pendentes e erros de cada conta, com a fila de publicação sempre visível.</p>
       </div>
     </div>
   </div>
@@ -252,105 +182,67 @@ footer{padding:30px 0;text-align:center;font-size:12px;color:var(--tx3)}
 
 <section id="planos">
   <div class="wrap">
-    <div class="sec-head">
-      <div>
-        <div class="eyebrow">Planos</div>
-        <h2 class="sec-title">Um plano para cada estágio</h2>
+    <div class="sec-label">Planos</div>
+    <h2 class="sec-title">Simples, transparente e sem surpresas</h2>
+    <p class="sec-sub">Escolha o plano ideal para o seu perfil. Cancele quando quiser.</p>
+    <div class="plans-grid">
+      <div class="plan-card">
+        <div class="plan-tag">Grátis</div>
+        <div class="plan-desc">Ideal para quem está começando</div>
+        <div class="plan-price"><span class="cur">R$</span>0</div>
+        <div class="plan-note">pra sempre</div>
+        <a href="/app?signup=1" class="btn btn-g" style="width:100%">Começar grátis</a>
+        <ul>
+          <li>1 conta do Instagram</li>
+          <li>Agendamento automático</li>
+          <li>Upload direto pro storage</li>
+          <li>Dashboard básico</li>
+        </ul>
       </div>
-      <p class="sec-sub">Sem contrato, sem taxa de cancelamento. Mude ou cancele quando quiser.</p>
-    </div>
-
-    <div class="ptable-wrap">
-      <table class="ptable">
-        <thead>
-          <tr>
-            <th></th>
-            <th>
-              <div class="pname">Grátis</div>
-              <div class="pdesc">Pra quem está começando</div>
-              <div class="pprice"><span class="cur">R$</span>0</div>
-              <a href="/app?signup=1" class="btn btn-g" style="width:100%;margin-top:16px">Começar grátis</a>
-            </th>
-            <th class="pop">
-              <div class="pname">Pro</div>
-              <div class="pdesc">O mais usado pelos criadores</div>
-              <div class="pprice"><span class="cur">R$</span>49,90<span class="per"> /mês</span></div>
-              <a href="/app?signup=1" class="btn btn-p" style="width:100%;margin-top:16px">Assinar agora</a>
-            </th>
-            <th>
-              <div class="pname">Premium</div>
-              <div class="pdesc">Para operações profissionais</div>
-              <div class="pprice"><span class="cur">R$</span>99,90<span class="per"> /mês</span></div>
-              <a href="/app?signup=1" class="btn btn-g" style="width:100%;margin-top:16px">Assinar agora</a>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Contas do Instagram</td>
-            <td>1</td>
-            <td>5</td>
-            <td>20</td>
-          </tr>
-          <tr>
-            <td>Agendamento automático</td>
-            <td><span class="check">✓</span></td>
-            <td><span class="check">✓</span></td>
-            <td><span class="check">✓</span></td>
-          </tr>
-          <tr>
-            <td>Upload direto pro storage</td>
-            <td><span class="check">✓</span></td>
-            <td><span class="check">✓</span></td>
-            <td><span class="check">✓</span></td>
-          </tr>
-          <tr>
-            <td>Legendas pré-definidas</td>
-            <td><span class="dash">—</span></td>
-            <td><span class="check">✓</span></td>
-            <td><span class="check">✓</span></td>
-          </tr>
-          <tr>
-            <td>Suporte prioritário</td>
-            <td><span class="dash">—</span></td>
-            <td><span class="check">✓</span></td>
-            <td><span class="check">✓</span></td>
-          </tr>
-          <tr>
-            <td>Prioridade máxima na fila</td>
-            <td><span class="dash">—</span></td>
-            <td><span class="dash">—</span></td>
-            <td><span class="check">✓</span></td>
-          </tr>
-          <tr>
-            <td>Suporte 24/7</td>
-            <td><span class="dash">—</span></td>
-            <td><span class="dash">—</span></td>
-            <td><span class="check">✓</span></td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="plan-card pop">
+        <div class="plan-pop-badge">⚡ Mais popular</div>
+        <div class="plan-tag">Pro</div>
+        <div class="plan-desc">Mais usado pelos criadores</div>
+        <div class="plan-price"><span class="cur">R$</span>49<span class="cents">,90</span></div>
+        <div class="plan-note">por mês · cancele quando quiser</div>
+        <a href="/app?signup=1" class="btn btn-p" style="width:100%">Assinar agora</a>
+        <ul>
+          <li>Contas do Instagram ilimitadas</li>
+          <li>Tudo do plano Grátis</li>
+          <li>Legendas pré-definidas</li>
+          <li>Suporte prioritário</li>
+        </ul>
+      </div>
+      <div class="plan-card">
+        <div class="plan-tag">Premium</div>
+        <div class="plan-desc">Para criadores profissionais</div>
+        <div class="plan-price"><span class="cur">R$</span>99<span class="cents">,90</span></div>
+        <div class="plan-note">por mês · cancele quando quiser</div>
+        <a href="/app?signup=1" class="btn btn-g" style="width:100%">Assinar agora</a>
+        <ul>
+          <li>20 contas do Instagram</li>
+          <li>Tudo do plano Pro</li>
+          <li>Prioridade máxima na fila</li>
+          <li>Suporte 24/7</li>
+        </ul>
+      </div>
     </div>
   </div>
 </section>
 
 <section class="cta-final">
   <div class="wrap">
-    <div class="cta-box">
-      <div>
-        <div class="eyebrow">Comece hoje</div>
-        <h2>Pronto para tirar sua fila de publicação do piloto manual?</h2>
-        <p>Organize, agende e publique seu conteúdo no Instagram com o AspaTools — sem complicação, sem robôs de terceiros.</p>
-        <div class="hero-ctas">
-          <a href="/app?signup=1" class="btn btn-p btn-lg">Escolher meu plano →</a>
-          <a href="/app" class="btn btn-g btn-lg">Já tenho conta</a>
-        </div>
-      </div>
-      <div class="cta-list">
-        <div><span class="ico">🔐</span>Seus tokens ficam só com você</div>
-        <div><span class="ico">🎧</span>Suporte especializado</div>
-        <div><span class="ico">⚡</span>Configuração em 5 minutos</div>
-      </div>
+    <div class="pill"><span class="dot"></span>Comece hoje mesmo</div>
+    <h2>Pronto para ter controle total <span class="g">do seu conteúdo?</span></h2>
+    <p>Organize, agende e publique seu conteúdo no Instagram com o AspaTools — sem complicação, sem robôs de terceiros.</p>
+    <div class="trust">
+      <span>🛡 Seus tokens ficam só com você</span>
+      <span>🎧 Suporte especializado</span>
+      <span>⚡ Configuração em 5 minutos</span>
+    </div>
+    <div class="hero-ctas">
+      <a href="/app?signup=1" class="btn btn-p btn-lg">Escolher meu plano →</a>
+      <a href="/app" class="btn btn-g btn-lg">Já tenho conta — Entrar</a>
     </div>
   </div>
 </section>
