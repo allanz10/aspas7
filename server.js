@@ -753,6 +753,8 @@ app.get('/api/dashboard', auth, async (req, res) => {
     const today = await q(`SELECT count(*)::int AS n FROM videos
       WHERE user_id=$1 AND status='postado'
       AND (posted_at AT TIME ZONE '${TZ}')::date = (now() AT TIME ZONE '${TZ}')::date`, uidP);
+    // Total postado por TODOS os usuários do site (métrica global, não filtrada por user_id)
+    const sitePosted = await q(`SELECT count(*)::int AS n FROM videos WHERE status='postado'`);
 
     const accs = await q(`SELECT * FROM accounts WHERE user_id=$1 ORDER BY created_at`, uidP);
     const accStats = [];
@@ -787,7 +789,7 @@ app.get('/api/dashboard', auth, async (req, res) => {
       WHERE v.user_id=$1 AND v.status='pendente' ORDER BY v.scheduled_for LIMIT 8`, uidP);
 
     res.json({
-      stats: { ...sr.rows[0], accounts: accCount.rows[0].n },
+      stats: { ...sr.rows[0], accounts: accCount.rows[0].n, sitePostedTotal: sitePosted.rows[0].n },
       todayCount: today.rows[0].n,
       accStats,
       upcoming: up.rows.map(v => ({
