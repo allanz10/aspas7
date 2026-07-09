@@ -36,57 +36,25 @@
 body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-serif;display:flex;min-height:100vh;font-size:13px;-webkit-font-smoothing:antialiased}
 
 /* AUTH */
-.auth-screen{position:fixed;inset:0;background:var(--bg);display:flex;z-index:9999}
+.auth-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
 .auth-screen.hidden{display:none}
-
-.auth-side{flex:1;position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:48px;background:linear-gradient(160deg,var(--s1),var(--bg));border-right:1px solid var(--b1);overflow:hidden}
-.auth-side::before{content:'';position:absolute;top:-18%;left:-12%;width:460px;height:460px;border-radius:50%;background:radial-gradient(circle,var(--p3),transparent 70%)}
-.auth-side::after{content:'';position:absolute;bottom:-25%;right:-15%;width:380px;height:380px;border-radius:50%;background:radial-gradient(circle,rgba(236,72,153,.08),transparent 70%)}
-.auth-side-top{position:relative}
-.auth-brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;letter-spacing:-.2px;margin-bottom:64px}
-.auth-brand-icon{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#ec4899);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;box-shadow:0 2px 10px rgba(99,102,241,.4)}
-.auth-side h2{font-size:28px;font-weight:700;letter-spacing:-.9px;line-height:1.25;max-width:360px;margin-bottom:14px}
-.auth-side h2 .g{background:linear-gradient(90deg,#a78bfa,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent}
-.auth-side-sub{font-size:13px;color:var(--tx1);max-width:300px;line-height:1.65;margin-bottom:34px}
-
-.auth-mini-queue{position:relative;background:var(--s2);border:1px solid var(--b1);border-radius:14px;padding:6px 16px;max-width:300px}
-.amq-row{display:flex;align-items:center;gap:10px;padding:10px 0;font-size:12px}
-.amq-row+.amq-row{border-top:1px solid var(--b1)}
-.amq-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.amq-dot.ok{background:var(--ac)}
-.amq-dot.now{background:#a78bfa;box-shadow:0 0 0 3px rgba(139,92,246,.22)}
-.amq-dot.pend{background:var(--tx3)}
-.amq-txt{flex:1;color:var(--tx1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.amq-row.ok .amq-txt, .amq-row.now .amq-txt{color:var(--tx)}
-.amq-time{color:var(--tx3);font-size:11px;flex-shrink:0}
-
-.auth-side-bottom{position:relative;display:flex;flex-direction:column;gap:10px}
-.auth-trust{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--tx2)}
-.auth-trust .ic{width:22px;height:22px;border-radius:6px;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
-
-.auth-main{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;position:relative;min-width:0}
-.auth-box{width:100%;max-width:368px;background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:36px 32px;box-shadow:0 20px 60px -20px rgba(0,0,0,.5)}
-.auth-logo{margin-bottom:26px}
-.auth-logo h1{font-size:19px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px}
-.auth-logo p{font-size:12.5px;color:var(--tx2)}
-.auth-field{margin-bottom:13px}
+.auth-box{width:100%;max-width:360px;padding:32px}
+.auth-logo{text-align:center;margin-bottom:32px}
+.auth-logo-icon{display:inline-flex;width:44px;height:44px;background:var(--s3);border:1px solid var(--b1);border-radius:12px;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px}
+.auth-logo h1{font-size:20px;font-weight:600;letter-spacing:-.4px;margin-bottom:4px}
+.auth-logo p{font-size:12px;color:var(--tx2)}
+.auth-field{margin-bottom:12px}
 .auth-field label{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px;letter-spacing:.02em}
-.auth-field .fi{position:relative}
-.auth-field .fi .ic{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.55;pointer-events:none}
-.auth-field input{width:100%;padding:10px 12px 10px 34px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}
+.auth-field input{width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s}
 .auth-field input:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.16)}
 .auth-error{padding:9px 12px;border-radius:8px;background:var(--rd2);border:1px solid rgba(255,85,85,.15);color:var(--rd);font-size:12px;margin-bottom:12px;display:none}
 .auth-error.show{display:block}
-.auth-btn{width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Geist',sans-serif;cursor:pointer;transition:all .15s;letter-spacing:-.1px;box-shadow:0 4px 16px -4px rgba(139,92,246,.5);margin-top:4px}
+.auth-btn{width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Geist',sans-serif;cursor:pointer;transition:all .15s;letter-spacing:-.1px;box-shadow:0 4px 16px -4px rgba(139,92,246,.5)}
 .auth-btn:hover{filter:brightness(1.08);box-shadow:0 6px 20px -4px rgba(139,92,246,.6);transform:translateY(-1px)}
 .auth-btn:disabled{opacity:.4;cursor:wait}
-.auth-switch{text-align:center;margin-top:18px;font-size:12px;color:var(--tx2)}
+.auth-switch{text-align:center;margin-top:16px;font-size:12px;color:var(--tx2)}
 .auth-switch a{color:var(--tx1);cursor:pointer;font-weight:500}
 .auth-switch a:hover{color:var(--tx)}
-
-@media(max-width:860px){
-  .auth-side{display:none}
-}
 
 /* APP */
 .app-wrap{display:none;width:100%;min-height:100vh}
@@ -133,7 +101,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .sb-accounts-title{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);padding:0 10px;margin-bottom:7px}
 .sb-acc-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;cursor:pointer;transition:background .1s}
 .sb-acc-item:hover{background:var(--p3)}
-.sb-acc-av{width:22px;height:22px;border-radius:50%;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0}
+.sb-acc-av{width:22px;height:22px;border-radius:50%;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0;overflow:hidden}
 .sb-acc-name{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-acc-handle{font-size:10px;color:var(--tx2)}
 .sb-user-box{border-top:1px solid var(--b1);padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
@@ -183,7 +151,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .acc-card:hover{border-color:var(--b2)}
 .acc-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
 .acc-card-left{display:flex;align-items:center;gap:10px}
-.acc-avatar{width:36px;height:36px;border-radius:50%;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.acc-avatar{width:36px;height:36px;border-radius:50%;background:var(--s3);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;overflow:hidden}
 .acc-username{font-size:13px;font-weight:500;margin-bottom:3px;letter-spacing:-.2px}
 .acc-badge{display:inline-flex;align-items:center;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;letter-spacing:.2px}
 .acc-badge.custom{background:var(--s3);color:var(--tx2);border:1px solid var(--b1)}
@@ -381,54 +349,34 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
      AUTH SCREEN (LOGIN / SIGNUP)
      ═══════════════════════════════════════════ -->
 <div class="auth-screen" id="authScreen">
-
-  <!-- LADO ESQUERDO — marca e visual (some no mobile) -->
-  <div class="auth-side">
-    <div class="auth-side-top">
-      <div class="auth-brand"><div class="auth-brand-icon">✂️</div>AspaTools</div>
-      <h2>Sua fila de Reels,<br><span class="g">sempre publicando.</span></h2>
-      <p class="auth-side-sub">Envie seus vídeos uma vez. O AspaTools organiza a fila e publica sozinho, direto pela API oficial da Meta.</p>
-      <div class="auth-mini-queue">
-        <div class="amq-row ok"><span class="amq-dot ok"></span><span class="amq-txt">reel_promo_03.mp4 · publicado</span><span class="amq-time">09:40</span></div>
-        <div class="amq-row now"><span class="amq-dot now"></span><span class="amq-txt">reel_lancamento.mp4 · publicando</span><span class="amq-time">12:35</span></div>
-        <div class="amq-row"><span class="amq-dot pend"></span><span class="amq-txt">reel_depoimento.mp4 · na fila</span><span class="amq-time">14:05</span></div>
+  <div class="auth-box">
+    <!-- LOGIN -->
+    <div id="authLogin">
+      <div class="auth-logo">
+        <div class="auth-logo-icon">✂️</div>
+        <h1>AspaTools</h1>
+        <p>Entre na sua conta</p>
       </div>
+      <div class="auth-error" id="loginError"></div>
+      <div class="auth-field"><label>E-mail</label><input type="email" id="loginEmail" placeholder="seu@email.com"></div>
+      <div class="auth-field"><label>Senha</label><input type="password" id="loginPass" placeholder="••••••••"></div>
+      <button class="auth-btn" id="loginBtn" onclick="doLogin()">Entrar</button>
+      <div class="auth-switch">Não tem conta? <a onclick="showSignup()">Criar conta</a></div>
     </div>
-    <div class="auth-side-bottom">
-      <div class="auth-trust"><span class="ic">🔐</span>Seus tokens ficam só com você</div>
-      <div class="auth-trust"><span class="ic">⚡</span>Configuração em 5 minutos</div>
-    </div>
-  </div>
-
-  <!-- LADO DIREITO — formulário -->
-  <div class="auth-main">
-    <div class="auth-box">
-      <!-- LOGIN -->
-      <div id="authLogin">
-        <div class="auth-logo">
-          <h1>Bem-vindo de volta</h1>
-          <p>Entre na sua conta AspaTools</p>
-        </div>
-        <div class="auth-error" id="loginError"></div>
-        <div class="auth-field"><label>E-mail</label><div class="fi"><span class="ic">✉️</span><input type="email" id="loginEmail" placeholder="seu@email.com"></div></div>
-        <div class="auth-field"><label>Senha</label><div class="fi"><span class="ic">🔒</span><input type="password" id="loginPass" placeholder="••••••••"></div></div>
-        <button class="auth-btn" id="loginBtn" onclick="doLogin()">Entrar</button>
-        <div class="auth-switch">Não tem conta? <a onclick="showSignup()">Criar conta</a></div>
+    <!-- SIGNUP -->
+    <div id="authSignup" style="display:none">
+      <div class="auth-logo">
+        <div class="auth-logo-icon">✂️</div>
+        <h1>Criar Conta</h1>
+        <p>Comece a usar o AspaTools</p>
       </div>
-      <!-- SIGNUP -->
-      <div id="authSignup" style="display:none">
-        <div class="auth-logo">
-          <h1>Criar conta</h1>
-          <p>Comece a usar o AspaTools</p>
-        </div>
-        <div class="auth-error" id="signupError"></div>
-        <div class="auth-field"><label>Nome</label><div class="fi"><span class="ic">👤</span><input type="text" id="signupName" placeholder="Seu nome"></div></div>
-        <div class="auth-field"><label>E-mail</label><div class="fi"><span class="ic">✉️</span><input type="email" id="signupEmail" placeholder="seu@email.com"></div></div>
-        <div class="auth-field"><label>Senha</label><div class="fi"><span class="ic">🔒</span><input type="password" id="signupPass" placeholder="Mínimo 6 caracteres"></div></div>
-        <div class="auth-field"><label>Confirmar senha</label><div class="fi"><span class="ic">🔒</span><input type="password" id="signupPass2" placeholder="Repita a senha"></div></div>
-        <button class="auth-btn" id="signupBtn" onclick="doSignup()">Criar conta</button>
-        <div class="auth-switch">Já tem conta? <a onclick="showLogin()">Entrar</a></div>
-      </div>
+      <div class="auth-error" id="signupError"></div>
+      <div class="auth-field"><label>Nome</label><input type="text" id="signupName" placeholder="Seu nome"></div>
+      <div class="auth-field"><label>E-mail</label><input type="email" id="signupEmail" placeholder="seu@email.com"></div>
+      <div class="auth-field"><label>Senha</label><input type="password" id="signupPass" placeholder="Mínimo 6 caracteres"></div>
+      <div class="auth-field"><label>Confirmar Senha</label><input type="password" id="signupPass2" placeholder="Repita a senha"></div>
+      <button class="auth-btn" id="signupBtn" onclick="doSignup()">Criar conta</button>
+      <div class="auth-switch">Já tem conta? <a onclick="showLogin()">Entrar</a></div>
     </div>
   </div>
 </div>
@@ -624,7 +572,7 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
         <div class="r2"><div class="field"><label>Product ID — Plano Pro</label><input id="kv-pid-pro"></div><div class="field"><label>Product ID — Plano Premium</label><input id="kv-pid-premium"></div></div>
         <div class="r2"><div class="field"><label>Link de Checkout — Pro</label><input id="kv-chk-pro" placeholder="https://pay.kirvano.com/..."></div><div class="field"><label>Link de Checkout — Premium</label><input id="kv-chk-premium" placeholder="https://pay.kirvano.com/..."></div></div>
         <div class="r2"><div class="field"><label>Preço exibido — Pro</label><input id="kv-price-pro" placeholder="R$ 49,90/mês"></div><div class="field"><label>Preço exibido — Premium</label><input id="kv-price-premium" placeholder="R$ 99,90/mês"></div></div>
-        <div class="r2"><div class="field"><label>Limite de contas — Grátis</label><input id="kv-lim-free" type="number" min="1"></div><div class="field"><label>Limite de contas — Pro</label><input id="kv-lim-pro" type="number" min="1"></div></div>
+        <div class="r2"><div class="field"><label>Limite de contas — Grátis</label><input id="kv-lim-free" type="number" min="1"></div><div class="field"><label>Limite de contas — Pro <span style="color:var(--tx3);font-weight:400">(-1 = ilimitado)</span></label><input id="kv-lim-pro" type="number" min="-1"></div></div>
         <div class="field" style="max-width:calc(50% - 8px)"><label>Limite de contas — Premium</label><input id="kv-lim-premium" type="number" min="1"></div>
         <button class="btn btn-p btn-sm" onclick="saveKirvanoSettings()" style="margin-top:6px">💾 Salvar</button>
       </div>
@@ -723,16 +671,19 @@ async function doSignup() {
 function doLogout() {
   if (authToken) fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + authToken } }).catch(() => {});
   authToken = ''; localStorage.removeItem('ct_token'); currentUser = null;
-  // Limpar todo estado da sessão
-  accounts = [];
-  categories = [];
-  uploadQueue = [];
-  uploadAbortMap.clear();
-  document.getElementById('sbAccsList').innerHTML = '';
-  document.getElementById('sbQueue').style.display = 'none';
-  document.getElementById('queueList').innerHTML = '';
+  // Troca de tela primeiro — garante que o logout sempre funcione, mesmo se algo abaixo falhar
   document.getElementById('authScreen').classList.remove('hidden');
   document.getElementById('appWrap').classList.remove('show');
+  // Limpar todo estado da sessão (best-effort, não deve travar o logout se algo aqui mudar no futuro)
+  try {
+    accounts = [];
+    categories = [];
+    uploadQueue = [];
+    uploadAbortMap.clear();
+    document.getElementById('sbAccsList').innerHTML = '';
+    document.getElementById('sbQueue').style.display = 'none';
+    document.getElementById('queueList').innerHTML = '';
+  } catch (e) { console.warn('Limpeza pós-logout:', e); }
 }
 
 function enterApp() {
@@ -1104,7 +1055,7 @@ async function loadDash(){
     if(err>0){stateColor='var(--rd)';stateSh='rgba(255,85,85,.25)';pill='<span class="dash-status-pill warn"><span class="dash-status-dot"></span>Com erro</span>';}
     else if(!a.nextScheduled && pend===0){stateColor='var(--tx3)';stateSh='rgba(255,255,255,.06)';pill='<span class="dash-status-pill off"><span class="dash-status-dot"></span>Sem fila</span>';}
     return `<div class="dash-acc-card" style="--acc-state:${stateColor};--acc-state-sh:${stateSh}">
-      <div class="dash-acc-header"><div class="dash-acc-av-ring"><div class="dash-acc-av">📷</div></div><div style="flex:1;min-width:0"><div class="dash-acc-name">@${a.username||a.label} ${getCatTag(a.categoryId)}</div><div class="dash-acc-sub">${a.postsPerDay}×/dia · ${a.startTime}–${a.endTime}</div></div>${pill}<button class="icon-btn" title="Reagendar pendentes com intervalo correto" onclick="rescheduleAcc('${a.id}','${a.username||a.label}')">🔄</button></div>
+      <div class="dash-acc-header"><div class="dash-acc-av-ring"><div class="dash-acc-av">${a.avatarUrl?`<img src="${a.avatarUrl}" onerror="this.parentElement.textContent='📷'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:'📷'}</div></div><div style="flex:1;min-width:0"><div class="dash-acc-name">@${a.username||a.label} ${getCatTag(a.categoryId)}</div><div class="dash-acc-sub">${a.postsPerDay}×/dia · ${a.startTime}–${a.endTime}</div></div>${pill}<button class="icon-btn" title="Reagendar pendentes com intervalo correto" onclick="rescheduleAcc('${a.id}','${a.username||a.label}')">🔄</button></div>
       <div class="dash-acc-bars">
         <div class="dash-bar-row"><span class="dash-bar-lbl">✅ Postados</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pPost}%;background:linear-gradient(90deg,#0ea86f,var(--ac))"></div></div><span class="dash-bar-val c-g">${post}</span></div>
         <div class="dash-bar-row"><span class="dash-bar-lbl">⏰ Pendentes</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pPend}%;background:linear-gradient(90deg,#d6820f,var(--ye))"></div></div><span class="dash-bar-val c-y">${pend}</span></div>
@@ -1133,10 +1084,10 @@ async function loadAccounts(){
   grid.innerHTML=accounts.map(a=>{
     const catTag=getCatTag(a.categoryId);
     const s=statsMap[a.id]||{};const c=s||{total:0};
-    return `<div class="acc-card"><div class="acc-card-top"><div class="acc-card-left"><div class="acc-avatar">📷</div><div><div class="acc-username">@${a.username||a.label}</div><span class="acc-badge intel">⚡ ${a.intervalMode||'inteligente'}</span><div class="acc-status" style="margin-top:2px">● active</div></div></div><div class="acc-card-actions"><button title="Testar" onclick="testAccount('${a.id}')">🔗</button><button title="Editar" onclick="openEditAccount('${a.id}')">✏️</button><button class="del" title="Remover" onclick="delAccount('${a.id}')">🗑</button></div></div><div class="acc-info-row"><span class="acc-info-lbl">Posts:</span><span class="acc-info-val">${c.todos||0}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Janela:</span><span class="acc-info-val">${a.startTime}-${a.endTime}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Vídeos/dia:</span><span class="acc-info-val">${a.postsPerDay}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Intervalo:</span><span class="acc-info-val">${a.intervalMinutes}min</span></div></div>`;
+    return `<div class="acc-card"><div class="acc-card-top"><div class="acc-card-left"><div class="acc-avatar">${a.avatarUrl?`<img src="${a.avatarUrl}" onerror="this.parentElement.textContent='📷'" style="width:100%;height:100%;object-fit:cover">`:'📷'}</div><div><div class="acc-username">@${a.username||a.label}</div><span class="acc-badge intel">⚡ ${a.intervalMode||'inteligente'}</span><div class="acc-status" style="margin-top:2px">● active</div></div></div><div class="acc-card-actions"><button title="Testar" onclick="testAccount('${a.id}')">🔗</button><button title="Editar" onclick="openEditAccount('${a.id}')">✏️</button><button class="del" title="Remover" onclick="delAccount('${a.id}')">🗑</button></div></div><div class="acc-info-row"><span class="acc-info-lbl">Posts:</span><span class="acc-info-val">${c.todos||0}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Janela:</span><span class="acc-info-val">${a.startTime}-${a.endTime}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Vídeos/dia:</span><span class="acc-info-val">${a.postsPerDay}</span></div><div class="acc-info-row"><span class="acc-info-lbl">Intervalo:</span><span class="acc-info-val">${a.intervalMinutes}min</span></div></div>`;
   }).join('');
 }
-function updateSbAccounts(){document.getElementById('sbAccsList').innerHTML=accounts.map(a=>`<div class="sb-acc-item" onclick="nav('accounts')"><div class="sb-acc-av">${(a.username||'?')[0].toUpperCase()}</div><div><div class="sb-acc-name">@${a.username||a.label}</div><div class="sb-acc-handle">${a.postsPerDay}×/dia</div></div></div>`).join('');}
+function updateSbAccounts(){document.getElementById('sbAccsList').innerHTML=accounts.map(a=>`<div class="sb-acc-item" onclick="nav('accounts')"><div class="sb-acc-av">${a.avatarUrl?`<img src="${a.avatarUrl}" onerror="this.parentElement.textContent='${(a.username||'?')[0].toUpperCase()}'" style="width:100%;height:100%;object-fit:cover">`:(a.username||'?')[0].toUpperCase()}</div><div><div class="sb-acc-name">@${a.username||a.label}</div><div class="sb-acc-handle">${a.postsPerDay}×/dia</div></div></div>`).join('');}
 function selMode(mode){currentMode=mode;document.getElementById('mode-intel').classList.toggle('sel',mode==='inteligente');document.getElementById('mode-manual').classList.toggle('sel',mode==='manual');updateIntervalPreview();}
 function updateIntervalPreview(){const ppd=parseInt(document.getElementById('aa-ppd').value)||40;const st=document.getElementById('aa-st').value||'02:00';const et=document.getElementById('aa-et').value||'23:00';const[sh,sm]=st.split(':').map(Number);const[eh,em]=et.split(':').map(Number);const w=(eh*60+em)-(sh*60+sm);const iv=ppd>1?Math.floor(w/(ppd-1)):w;document.getElementById('intervalPreview').textContent='Intervalo: '+iv+'min · '+ppd+' posts/dia';}
 updateIntervalPreview();
@@ -1232,7 +1183,7 @@ async function loadSettings(){
     if(r.planPricePro)document.getElementById('kv-price-pro').value=r.planPricePro;
     if(r.planPricePremium)document.getElementById('kv-price-premium').value=r.planPricePremium;
     document.getElementById('kv-lim-free').value=r.planLimitFree||1;
-    document.getElementById('kv-lim-pro').value=r.planLimitPro||5;
+    document.getElementById('kv-lim-pro').value=r.planLimitPro??-1;
     document.getElementById('kv-lim-premium').value=r.planLimitPremium||20;
   }
 }
@@ -1256,11 +1207,11 @@ async function saveKirvanoSettings(){
 async function loadPlans(){
   const r=await api('/api/plans');
   const cur=r.currentPlan;
-  document.getElementById('planUsageLine').textContent=`Você está no plano ${planLabel(cur)} · ${r.accountsUsed}/${r.limits[cur]} contas do Instagram conectadas`+(r.planExpiresAt?` · renova em ${fmtDT(r.planExpiresAt)}`:'');
+  document.getElementById('planUsageLine').textContent=`Você está no plano ${planLabel(cur)} · ${r.accountsUsed}/${fmtLimit(r.limits[cur])} contas do Instagram conectadas`+(r.planExpiresAt?` · renova em ${fmtDT(r.planExpiresAt)}`:'');
   const defs=[
-    {id:'free',name:'Grátis',color:'#8b8fa3',price:'R$ 0',sub:'/sempre',checkout:null,features:[`${r.limits.free} conta do Instagram`,'Agendamento automático','Upload direto pro storage']},
-    {id:'pro',name:'Pro',color:'#a78bfa',price:r.prices.pro||'—',sub:r.prices.pro?'':'',checkout:r.checkout.pro,features:[`${r.limits.pro} contas do Instagram`,'Tudo do plano Grátis','Suporte prioritário']},
-    {id:'premium',name:'Premium',color:'#ecb43c',price:r.prices.premium||'—',sub:r.prices.premium?'':'',checkout:r.checkout.premium,features:[`${r.limits.premium} contas do Instagram`,'Tudo do plano Pro','Prioridade máxima na fila']},
+    {id:'free',name:'Grátis',color:'#8b8fa3',price:'R$ 0',sub:'/sempre',checkout:null,features:[`${fmtLimit(r.limits.free)} conta(s) do Instagram`,'Agendamento automático','Upload direto pro storage']},
+    {id:'pro',name:'Pro',color:'#a78bfa',price:r.prices.pro||'—',sub:r.prices.pro?'':'',checkout:r.checkout.pro,features:[`${fmtLimit(r.limits.pro)} contas do Instagram`,'Tudo do plano Grátis','Suporte prioritário']},
+    {id:'premium',name:'Premium',color:'#ecb43c',price:r.prices.premium||'—',sub:r.prices.premium?'':'',checkout:r.checkout.premium,features:[`${fmtLimit(r.limits.premium)} contas do Instagram`,'Tudo do plano Pro','Prioridade máxima na fila']},
   ];
   document.getElementById('plansGrid').innerHTML=defs.map(p=>{
     const isCurrent=p.id===cur;
@@ -1277,6 +1228,7 @@ async function loadPlans(){
   }).join('');
 }
 function planLabel(p){return {free:'Grátis',pro:'Pro',premium:'Premium'}[p]||p;}
+function fmtLimit(n){return (n===-1||n===undefined||n===null)?'Ilimitado':n;}
 async function saveSettings(){const body={b2KeyId:document.getElementById('b2-kid').value.trim(),b2AppKey:document.getElementById('b2-key').value.trim(),b2Bucket:document.getElementById('b2-bkt').value.trim(),b2Endpoint:document.getElementById('b2-ep').value.trim(),b2PublicUrl:document.getElementById('b2-pub').value.trim()};if(!body.b2KeyId||!body.b2Bucket){toast('Preencha Key ID e Bucket','er');return;}await api('/api/settings',{method:'POST',body:JSON.stringify(body)});toast('✅ Salvo!','ok');}
 
 // ═══ ADMIN PANEL ═══
