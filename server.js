@@ -65,6 +65,7 @@ async function migrate() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
   // Compatibilidade com bancos já existentes (adiciona a coluna se ainda não existir)
   await q(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS graph_host TEXT NOT NULL DEFAULT 'https://graph.facebook.com/v19.0'`);
+  await q(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS avatar_url TEXT`);
   await q(`CREATE TABLE IF NOT EXISTS videos(
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -262,7 +263,7 @@ app.get('/api/auth/facebook/callback', async (req, res) => {
     const userToken = ll.access_token || r.access_token;
 
     // 3. Páginas + contas Instagram Business vinculadas
-    const pages = await fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}` +
+    const pages = await fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,profile_picture_url}` +
       `&limit=100&access_token=${userToken}`).then(x => x.json());
     if (pages.error) { console.error('FB pages:', pages.error); return res.redirect('/?fb=pages_error'); }
 
@@ -276,13 +277,13 @@ app.get('/api/auth/facebook/callback', async (req, res) => {
       if (!ig) continue;
       const existing = await q(`SELECT id FROM accounts WHERE user_id=$1 AND ig_user_id=$2`, [userId, ig.id]);
       if (existing.rows.length) {
-        await q(`UPDATE accounts SET access_token=$1, username=$2 WHERE id=$3`,
-          [p.access_token, ig.username || p.name, existing.rows[0].id]);
+        await q(`UPDATE accounts SET access_token=$1, username=$2, avatar_url=$3 WHERE id=$4`,
+          [p.access_token, ig.username || p.name, ig.profile_picture_url || null, existing.rows[0].id]);
       } else {
-        if (currentCount >= limit) { skippedLimit++; continue; } // limite do plano atingido — não adiciona novas
-        await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token)
-                 VALUES($1,$2,$3,$4,$5,$6)`,
-          [uid(), userId, ig.username || p.name, p.name, ig.id, p.access_token]);
+        if (limit >= 0 && currentCount >= limit) { skippedLimit++; continue; } // limite do plano atingido — não adiciona novas
+        await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token,avatar_url)
+                 VALUES($1,$2,$3,$4,$5,$6,$7)`,
+          [uid(), userId, ig.username || p.name, p.name, ig.id, p.access_token, ig.profile_picture_url || null]);
         currentCount++;
       }
       added++;
@@ -337,13 +338,18 @@ const SETTING_KEYS = ['b2KeyId', 'b2AppKey', 'b2Bucket', 'b2Endpoint', 'b2Public
   'kirvanoToken', 'kirvanoProProductId', 'kirvanoPremiumProductId', 'kirvanoCheckoutPro', 'kirvanoCheckoutPremium',
   'planLimitFree', 'planLimitPro', 'planLimitPremium', 'planPricePro', 'planPricePremium'];
 
-const DEFAULT_PLAN_LIMITS = { free: 1, pro: 5, premium: 20 };
+const DEFAULT_PLAN_LIMITS = { free: 1, pro: -1, premium: 20 }; // -1 = contas ilimitadas
+function parseLimit(v, def) {
+  if (v === undefined || v === null || String(v).trim() === '') return def;
+  const n = parseInt(v);
+  return isNaN(n) ? def : n; // pode ser -1 (ilimitado) ou um número positivo
+}
 async function getPlanLimits() {
   const s = await getSettings();
   return {
-    free: parseInt(s.planLimitFree) || DEFAULT_PLAN_LIMITS.free,
-    pro: parseInt(s.planLimitPro) || DEFAULT_PLAN_LIMITS.pro,
-    premium: parseInt(s.planLimitPremium) || DEFAULT_PLAN_LIMITS.premium,
+    free: parseLimit(s.planLimitFree, DEFAULT_PLAN_LIMITS.free),
+    pro: parseLimit(s.planLimitPro, DEFAULT_PLAN_LIMITS.pro),
+    premium: parseLimit(s.planLimitPremium, DEFAULT_PLAN_LIMITS.premium),
   };
 }
 
@@ -462,7 +468,8 @@ function accountJson(a) {
   return {
     id: a.id, username: a.username, label: a.label, categoryId: a.category_id,
     postsPerDay: a.posts_per_day, startTime: a.start_time, endTime: a.end_time,
-    intervalMode: a.interval_mode, intervalMinutes: intervalMinutes(a)
+    intervalMode: a.interval_mode, intervalMinutes: intervalMinutes(a),
+    avatarUrl: a.avatar_url || null
   };
 }
 
@@ -482,21 +489,22 @@ app.post('/api/accounts', auth, async (req, res) => {
     const token = String(accessToken || '').trim();
     if (!token) return res.json({ error: 'Informe o Access Token' });
 
-    let igUserId, username, pageToken, graphHost;
+    let igUserId, username, pageToken, graphHost, avatarUrl = null;
 
     if (isIgLoginToken(token)) {
       // ── Instagram API with Instagram Login (não precisa de Página do Facebook) ──
       graphHost = IG_LOGIN_GRAPH;
-      const me = await fetch(`${IG_LOGIN_GRAPH}/me?fields=user_id,username&access_token=${encodeURIComponent(token)}`)
+      const me = await fetch(`${IG_LOGIN_GRAPH}/me?fields=user_id,username,profile_picture_url&access_token=${encodeURIComponent(token)}`)
         .then(x => x.json());
       if (me.error) return res.json({ error: me.error.message || 'Token inválido ou expirado' });
       igUserId = me.user_id || me.id;
       username = me.username;
+      avatarUrl = me.profile_picture_url || null;
       pageToken = token;
     } else {
       // ── Facebook Login for Business (token precisa ter acesso a uma Página vinculada ao Instagram) ──
       graphHost = GRAPH;
-      const pages = await fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}` +
+      const pages = await fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,profile_picture_url}` +
         `&limit=100&access_token=${encodeURIComponent(token)}`).then(x => x.json());
       if (pages.error) return res.json({ error: pages.error.message || 'Token inválido ou expirado' });
       const withIg = (pages.data || []).find(p => p.instagram_business_account);
@@ -505,6 +513,7 @@ app.post('/api/accounts', auth, async (req, res) => {
       });
       igUserId = withIg.instagram_business_account.id;
       username = withIg.instagram_business_account.username;
+      avatarUrl = withIg.instagram_business_account.profile_picture_url || null;
       pageToken = withIg.access_token || token;
     }
 
@@ -514,27 +523,27 @@ app.post('/api/accounts', auth, async (req, res) => {
     let id;
     if (existing.rows.length) {
       id = existing.rows[0].id;
-      await q(`UPDATE accounts SET access_token=$1, username=$2, graph_host=$3, label=COALESCE($4,label),
-          posts_per_day=COALESCE($5,posts_per_day), start_time=COALESCE($6,start_time),
-          end_time=COALESCE($7,end_time), interval_mode=COALESCE($8,interval_mode), category_id=$9
-        WHERE id=$10`,
-        [pageToken, username, graphHost, label || null, postsPerDay ? parseInt(postsPerDay) : null,
+      await q(`UPDATE accounts SET access_token=$1, username=$2, graph_host=$3, avatar_url=$4, label=COALESCE($5,label),
+          posts_per_day=COALESCE($6,posts_per_day), start_time=COALESCE($7,start_time),
+          end_time=COALESCE($8,end_time), interval_mode=COALESCE($9,interval_mode), category_id=$10
+        WHERE id=$11`,
+        [pageToken, username, graphHost, avatarUrl, label || null, postsPerDay ? parseInt(postsPerDay) : null,
          startTime || null, endTime || null, intervalMode || null, categoryId || null, id]);
     } else {
       // Limite de contas conforme o plano do usuário (só se aplica a contas NOVAS)
       const limits = await getPlanLimits();
       const limit = limits[req.user.plan] ?? limits.free;
       const countR = await q(`SELECT COUNT(*)::int AS c FROM accounts WHERE user_id=$1`, [req.user.id]);
-      if (countR.rows[0].c >= limit) {
+      if (limit >= 0 && countR.rows[0].c >= limit) {
         return res.json({
           error: `Seu plano atual (${req.user.plan}) permite no máximo ${limit} conta(s) do Instagram. Faça upgrade para conectar mais contas.`,
           upgradeRequired: true
         });
       }
       id = uid();
-      await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token,graph_host,category_id,posts_per_day,start_time,end_time,interval_mode)
-               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [id, req.user.id, username, label || username, igUserId, pageToken, graphHost, categoryId || null,
+      await q(`INSERT INTO accounts(id,user_id,username,label,ig_user_id,access_token,graph_host,avatar_url,category_id,posts_per_day,start_time,end_time,interval_mode)
+               VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [id, req.user.id, username, label || username, igUserId, pageToken, graphHost, avatarUrl, categoryId || null,
          parseInt(postsPerDay) || 40, startTime || '02:00', endTime || '23:00', intervalMode || 'inteligente']);
     }
     const a = (await q(`SELECT * FROM accounts WHERE id=$1`, [id])).rows[0];
@@ -582,10 +591,11 @@ app.post('/api/accounts/:id/test', auth, async (req, res) => {
   if (!a.ig_user_id || !a.access_token) return res.json({ error: 'Conta sem credenciais da Meta — reconecte' });
   try {
     const host = a.graph_host || GRAPH;
-    const ig = await fetch(`${host}/${a.ig_user_id}?fields=username&access_token=${a.access_token}`).then(x => x.json());
+    const ig = await fetch(`${host}/${a.ig_user_id}?fields=username,profile_picture_url&access_token=${a.access_token}`).then(x => x.json());
     if (ig.error) return res.json({ error: ig.error.message || 'Token inválido' });
-    if (ig.username && ig.username !== a.username)
-      await q(`UPDATE accounts SET username=$1 WHERE id=$2`, [ig.username, a.id]);
+    if ((ig.username && ig.username !== a.username) || (ig.profile_picture_url && ig.profile_picture_url !== a.avatar_url))
+      await q(`UPDATE accounts SET username=COALESCE($1,username), avatar_url=COALESCE($2,avatar_url) WHERE id=$3`,
+        [ig.username || null, ig.profile_picture_url || null, a.id]);
     res.json({ success: true, username: ig.username || a.username });
   } catch (e) { res.json({ error: 'Erro de rede ao contatar a Meta' }); }
 });
