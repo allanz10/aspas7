@@ -11,50 +11,68 @@
 *{margin:0;padding:0;box-sizing:border-box}
 
 :root{
-  --bg:#0d0b13;
-  --s1:#151220;
-  --s2:#1b1729;
-  --s3:#231d34;
-  --b1:#2a2338;
-  --b2:#372e49;
-  --p:#e9e4ff;
-  --p2:#a78bfa;
-  --p3:rgba(139,92,246,.09);
-  --p4:rgba(139,92,246,.045);
+  --bg:#121110;
+  --s1:#1c1a19;
+  --s2:#242220;
+  --s3:#2d2a27;
+  --b1:#34302c;
+  --b2:#433e38;
+  --p:#f2efec;
+  --p2:#fb923c;
+  --p3:rgba(249,115,22,.09);
+  --p4:rgba(249,115,22,.045);
   --ac:#3ecf8e;
   --ac2:rgba(62,207,142,.15);
   --rd:#f55;--rd2:rgba(255,85,85,.12);
   --ye:#f5a623;--ye2:rgba(245,166,35,.12);
   --bl:#5b9cf6;--bl2:rgba(91,156,246,.12);
-  --tx:#f1eefc;--tx1:#a99fc2;--tx2:#6f6685;--tx3:#3a3450;
+  --tx:#f2efec;--tx1:#a39d95;--tx2:#6b665f;--tx3:#38342f;
   --sidebar:232px;
   --r:10px;
-  --c-dash:#6366f1;--c-acc:#a855f7;--c-vid:#ec4899;--c-cap:#f59e0b;--c-set:#10b981;
+  --c-dash:#f97316;--c-acc:#78716c;--c-vid:#fb923c;--c-cap:#f59e0b;--c-set:#10b981;
   --c-au:#fbbf24;--c-al:#38bdf8;
 }
 
 body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-serif;display:flex;min-height:100vh;font-size:13px;-webkit-font-smoothing:antialiased}
 
 /* AUTH */
-.auth-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px}
+.auth-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:grid;grid-template-columns:1fr 1fr}
 .auth-screen.hidden{display:none}
-.auth-box{width:100%;max-width:360px;padding:32px}
-.auth-logo{text-align:center;margin-bottom:32px}
-.auth-logo-icon{display:inline-flex;width:44px;height:44px;background:var(--s3);border:1px solid var(--b1);border-radius:12px;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px}
-.auth-logo h1{font-size:20px;font-weight:600;letter-spacing:-.4px;margin-bottom:4px}
+.auth-brand{position:relative;display:flex;flex-direction:column;justify-content:center;padding:60px;overflow:hidden;border-right:1px solid var(--b1)}
+.auth-brand::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 520px 380px at 25% 15%, rgba(249,115,22,.16), transparent 60%),
+    radial-gradient(circle, rgba(249,115,22,.07) 1px, transparent 1px);
+  background-size:auto, 24px 24px;pointer-events:none}
+.auth-brand-inner{position:relative;max-width:400px}
+.auth-brand-logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;letter-spacing:-.3px;margin-bottom:56px}
+.auth-brand-logo .ic{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#ea580c,#f97316 55%,#fb923c);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 12px -2px rgba(249,115,22,.5)}
+.auth-brand h2{font-size:30px;font-weight:800;letter-spacing:-.8px;line-height:1.22;margin-bottom:16px}
+.auth-brand h2 span{background:linear-gradient(90deg,#fdba74,#f97316);-webkit-background-clip:text;background-clip:text;color:transparent}
+.auth-brand>.auth-brand-inner>p{font-size:13.5px;color:var(--tx1);line-height:1.6;margin-bottom:34px}
+.auth-feat{display:flex;align-items:flex-start;gap:12px;margin-bottom:20px}
+.auth-feat .ic{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.auth-feat b{display:block;font-size:13px;font-weight:600;margin-bottom:2px}
+.auth-feat span{font-size:12px;color:var(--tx2);line-height:1.5}
+
+.auth-panel{display:flex;align-items:center;justify-content:center;padding:20px;position:relative}
+.auth-box{width:100%;max-width:360px;background:var(--s1);border:1px solid var(--b1);border-radius:16px;padding:36px 32px;box-shadow:0 20px 60px -20px rgba(0,0,0,.5)}
+.auth-logo{text-align:center;margin-bottom:28px}
+.auth-logo-icon{display:inline-flex;width:46px;height:46px;background:linear-gradient(135deg,#ea580c,#f97316 55%,#fb923c);border-radius:12px;align-items:center;justify-content:center;font-size:21px;margin-bottom:14px;box-shadow:0 4px 16px -4px rgba(249,115,22,.5)}
+.auth-logo h1{font-size:19px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px}
 .auth-logo p{font-size:12px;color:var(--tx2)}
 .auth-field{margin-bottom:12px}
 .auth-field label{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:5px;letter-spacing:.02em}
 .auth-field input{width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s}
-.auth-field input:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.16)}
+.auth-field input:focus{border-color:#f97316;box-shadow:0 0 0 3px rgba(249,115,22,.16)}
 .auth-error{padding:9px 12px;border-radius:8px;background:var(--rd2);border:1px solid rgba(255,85,85,.15);color:var(--rd);font-size:12px;margin-bottom:12px;display:none}
 .auth-error.show{display:block}
-.auth-btn{width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Geist',sans-serif;cursor:pointer;transition:all .15s;letter-spacing:-.1px;box-shadow:0 4px 16px -4px rgba(139,92,246,.5)}
-.auth-btn:hover{filter:brightness(1.08);box-shadow:0 6px 20px -4px rgba(139,92,246,.6);transform:translateY(-1px)}
+.auth-btn{width:100%;padding:11px;background:linear-gradient(135deg,#ea580c,#f97316 55%,#fb923c);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;font-family:'Geist',sans-serif;cursor:pointer;transition:all .15s;letter-spacing:-.1px;box-shadow:0 4px 16px -4px rgba(249,115,22,.5);margin-top:6px}
+.auth-btn:hover{filter:brightness(1.08);box-shadow:0 6px 20px -4px rgba(249,115,22,.6);transform:translateY(-1px)}
 .auth-btn:disabled{opacity:.4;cursor:wait}
-.auth-switch{text-align:center;margin-top:16px;font-size:12px;color:var(--tx2)}
-.auth-switch a{color:var(--tx1);cursor:pointer;font-weight:500}
-.auth-switch a:hover{color:var(--tx)}
+.auth-switch{text-align:center;margin-top:18px;font-size:12px;color:var(--tx2)}
+.auth-switch a{color:#fb923c;cursor:pointer;font-weight:600}
+.auth-switch a:hover{color:#fdba74}
+@media(max-width:840px){.auth-screen{grid-template-columns:1fr}.auth-brand{display:none}}
 
 /* APP */
 .app-wrap{display:none;width:100%;min-height:100vh}
@@ -64,7 +82,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .sidebar{width:var(--sidebar);background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;overflow-y:auto}
 .sb-header{padding:18px 14px 14px;border-bottom:1px solid var(--b1)}
 .sb-logo{display:flex;align-items:center;gap:9px;margin-bottom:1px}
-.sb-logo-icon{width:28px;height:28px;background:linear-gradient(135deg,#6366f1,#ec4899);border:1px solid var(--b1);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;box-shadow:0 2px 8px rgba(99,102,241,.35)}
+.sb-logo-icon{width:28px;height:28px;background:linear-gradient(135deg,#f97316,#fb923c);border:1px solid var(--b1);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;box-shadow:0 2px 8px rgba(249,115,22,.35)}
 .sb-logo-text{font-size:13px;font-weight:600;letter-spacing:-.3px}
 .sb-sub{font-size:10px;color:var(--tx3);margin-top:2px}
 .sb-nav{padding:8px 6px}
@@ -113,7 +131,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .sb-logout:hover{color:var(--rd)}
 
 /* MAIN */
-.main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh;background-image:radial-gradient(circle,rgba(139,92,246,.14) 1px,transparent 1px);background-size:22px 22px}
+.main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh;background-image:radial-gradient(circle,rgba(249,115,22,.14) 1px,transparent 1px);background-size:22px 22px}
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:13px 24px;border-bottom:1px solid var(--b1);position:sticky;top:0;z-index:50;background:var(--bg)}
 .topbar-title{font-size:14px;font-weight:500;letter-spacing:-.2px}
 .topbar-right{display:flex;align-items:center;gap:8px}
@@ -131,7 +149,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .plan-card{background:var(--s1);border:1px solid var(--b1);border-radius:14px;padding:22px;position:relative;display:flex;flex-direction:column;transition:transform .15s,box-shadow .15s}
 .plan-card.current{border-color:var(--pc,var(--ac));box-shadow:0 0 0 1px var(--pc,var(--ac))}
 .plan-card:hover{transform:translateY(-2px)}
-.plan-card .plan-badge{position:absolute;top:-10px;left:20px;font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:var(--pc,var(--ac));color:#0d0b13}
+.plan-card .plan-badge{position:absolute;top:-10px;left:20px;font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 10px;border-radius:100px;background:var(--pc,var(--ac));color:#121110}
 .plan-card .plan-name{font-size:15px;font-weight:700;margin-bottom:2px;display:flex;align-items:center;gap:7px}
 .plan-card .plan-price{font-size:22px;font-weight:700;margin:10px 0 14px;letter-spacing:-.5px}
 .plan-card .plan-price small{font-size:11px;font-weight:400;color:var(--tx2)}
@@ -187,10 +205,10 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .icon-btn:hover{border-color:var(--b2);color:var(--tx1);background:var(--s2)}
 .icon-btn.danger:hover{background:var(--rd2);border-color:rgba(255,85,85,.2);color:var(--rd)}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:7px;border:none;font-family:'Geist',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;letter-spacing:-.1px}
-.btn-p{background:linear-gradient(135deg,#6366f1,#a855f7 55%,#ec4899);color:#fff;box-shadow:0 2px 10px -2px rgba(139,92,246,.5)}
-.btn-p:hover{filter:brightness(1.08);box-shadow:0 4px 16px -2px rgba(139,92,246,.65);transform:translateY(-1px)}
+.btn-p{background:linear-gradient(135deg,#ea580c,#f97316 55%,#fb923c);color:#fff;box-shadow:0 2px 10px -2px rgba(249,115,22,.5)}
+.btn-p:hover{filter:brightness(1.08);box-shadow:0 4px 16px -2px rgba(249,115,22,.65);transform:translateY(-1px)}
 .btn-p:active{transform:translateY(0)}
-.btn-g{background:transparent;color:var(--tx1);border:1px solid var(--b1)}.btn-g:hover{background:var(--s2);border-color:#8b5cf6;color:var(--tx)}
+.btn-g{background:transparent;color:var(--tx1);border:1px solid var(--b1)}.btn-g:hover{background:var(--s2);border-color:#f97316;color:var(--tx)}
 .btn-d{background:linear-gradient(135deg,var(--rd2),rgba(255,85,85,.2));color:var(--rd);border:1px solid rgba(255,85,85,.25)}.btn-d:hover{background:rgba(255,85,85,.22);box-shadow:0 2px 10px -3px rgba(255,85,85,.4)}
 .btn-sm{padding:5px 10px;font-size:11px}
 .btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important;box-shadow:none!important}
@@ -200,7 +218,7 @@ body{background:var(--bg);color:var(--tx);font-family:'Geist',system-ui,sans-ser
 .field{margin-bottom:12px}.field:last-child{margin-bottom:0}
 label{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-bottom:4px}
 input,textarea,select{width:100%;background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:8px 11px;color:var(--tx);font-family:'Geist',sans-serif;font-size:13px;outline:none;transition:border-color .15s,box-shadow .15s}
-input:focus,textarea:focus,select:focus{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.16)}
+input:focus,textarea:focus,select:focus{border-color:#f97316;box-shadow:0 0 0 3px rgba(249,115,22,.16)}
 select option{background:var(--s2)}
 textarea{resize:vertical;min-height:60px;line-height:1.5}
 .r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -239,7 +257,7 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
 
 /* PROGRESS */
 .video-progress{margin-top:5px;height:3px;background:var(--b1);border-radius:100px;overflow:hidden}
-.video-progress-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--bl),#a855f7);transition:width .5s;animation:progpulse 1.5s ease-in-out infinite}
+.video-progress-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--bl),#78716c);transition:width .5s;animation:progpulse 1.5s ease-in-out infinite}
 @keyframes progpulse{0%,100%{opacity:1}50%{opacity:.4}}
 .video-proc-msg{font-size:10px;color:var(--bl);margin-top:2px}
 .post-progress{margin-top:5px;height:2px;background:var(--b1);border-radius:100px;overflow:hidden}
@@ -349,6 +367,17 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
      AUTH SCREEN (LOGIN / SIGNUP)
      ═══════════════════════════════════════════ -->
 <div class="auth-screen" id="authScreen">
+  <div class="auth-brand">
+    <div class="auth-brand-inner">
+      <div class="auth-brand-logo"><div class="ic">✂️</div>AspaTools</div>
+      <h2>Seu Instagram no <span>piloto automático</span>.</h2>
+      <p>Conecte suas contas, envie os vídeos e deixe o AspaTools publicar seus Reels no horário certo, todos os dias.</p>
+      <div class="auth-feat"><div class="ic" style="background:rgba(249,115,22,.16);color:#fb923c">📅</div><div><b>Agendamento automático</b><span>Publicação via API oficial da Meta, sem robôs de terceiros.</span></div></div>
+      <div class="auth-feat"><div class="ic" style="background:rgba(120,113,108,.18);color:#a8a29e">📱</div><div><b>Múltiplas contas</b><span>Gerencie todas as suas contas do Instagram num só painel.</span></div></div>
+      <div class="auth-feat"><div class="ic" style="background:rgba(62,207,142,.16);color:#3ecf8e">📊</div><div><b>Dashboard em tempo real</b><span>Acompanhe postados, pendentes e erros a qualquer momento.</span></div></div>
+    </div>
+  </div>
+  <div class="auth-panel">
   <div class="auth-box">
     <!-- LOGIN -->
     <div id="authLogin">
@@ -378,6 +407,7 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
       <button class="auth-btn" id="signupBtn" onclick="doSignup()">Criar conta</button>
       <div class="auth-switch">Já tem conta? <a onclick="showLogin()">Entrar</a></div>
     </div>
+  </div>
   </div>
 </div>
 
@@ -452,9 +482,9 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
   </div>
   <div class="sb-section-title">Principal</div>
   <nav class="sb-nav">
-    <button class="nav-item act" id="n-dash" onclick="nav('dash')" style="--ic:rgba(99,102,241,.18);--icbg:rgba(99,102,241,.12);--ic-solid:var(--c-dash)"><span class="icon">📊</span> Dashboard</button>
-    <button class="nav-item" id="n-accounts" onclick="nav('accounts')" style="--ic:rgba(168,85,247,.18);--icbg:rgba(168,85,247,.12);--ic-solid:var(--c-acc)"><span class="icon">📱</span> Configurar contas</button>
-    <button class="nav-item" id="n-videos" onclick="nav('videos')" style="--ic:rgba(236,72,153,.18);--icbg:rgba(236,72,153,.12);--ic-solid:var(--c-vid)"><span class="icon">🎬</span> Postar vídeos</button>
+    <button class="nav-item act" id="n-dash" onclick="nav('dash')" style="--ic:rgba(249,115,22,.18);--icbg:rgba(249,115,22,.12);--ic-solid:var(--c-dash)"><span class="icon">📊</span> Dashboard</button>
+    <button class="nav-item" id="n-accounts" onclick="nav('accounts')" style="--ic:rgba(120,113,108,.18);--icbg:rgba(120,113,108,.12);--ic-solid:var(--c-acc)"><span class="icon">📱</span> Configurar contas</button>
+    <button class="nav-item" id="n-videos" onclick="nav('videos')" style="--ic:rgba(251,146,60,.18);--icbg:rgba(251,146,60,.12);--ic-solid:var(--c-vid)"><span class="icon">🎬</span> Postar vídeos</button>
     <button class="nav-item" id="n-captions" onclick="nav('captions')" style="--ic:rgba(245,158,11,.18);--icbg:rgba(245,158,11,.12);--ic-solid:var(--c-cap)"><span class="icon">💬</span> Legendas</button>
     <button class="nav-item" id="n-plans" onclick="nav('plans')" style="--ic:rgba(236,180,60,.18);--icbg:rgba(236,180,60,.12);--ic-solid:#ecb43c"><span class="icon">💎</span> Planos</button>
     <button class="nav-item" id="n-settings" onclick="nav('settings')" style="display:none;--ic:rgba(16,185,129,.18);--icbg:rgba(16,185,129,.12);--ic-solid:var(--c-set)"><span class="icon">⚙️</span> Configurações</button>
@@ -498,15 +528,15 @@ textarea{resize:vertical;min-height:60px;line-height:1.5}
   <div class="page-content">
     <!-- DASHBOARD --><div class="panel act" id="panel-dash">
       <div class="stat-grid c4">
-        <div class="stat-box" style="--st-c:#6366f1;--st-sh:rgba(99,102,241,.3)"><span class="stat-icon" style="--st-bg:rgba(99,102,241,.16)">📦</span><div class="stat-num c-p" id="ds-total">0</div><div class="stat-lbl">Total de vídeos</div></div>
+        <div class="stat-box" style="--st-c:#f97316;--st-sh:rgba(249,115,22,.3)"><span class="stat-icon" style="--st-bg:rgba(249,115,22,.16)">📦</span><div class="stat-num c-p" id="ds-total">0</div><div class="stat-lbl">Total de vídeos</div></div>
         <div class="stat-box" style="--st-c:var(--ac);--st-sh:rgba(62,207,142,.3)"><span class="stat-icon" style="--st-bg:var(--ac2)">✅</span><div class="stat-num c-g" id="ds-posted">0</div><div class="stat-lbl">Postados</div></div>
         <div class="stat-box" style="--st-c:var(--ye);--st-sh:rgba(245,166,35,.3)"><span class="stat-icon" style="--st-bg:var(--ye2)">⏰</span><div class="stat-num c-y" id="ds-pending">0</div><div class="stat-lbl">Pendentes</div></div>
         <div class="stat-box" style="--st-c:var(--rd);--st-sh:rgba(255,85,85,.3)"><span class="stat-icon" style="--st-bg:var(--rd2)">❌</span><div class="stat-num c-r" id="ds-error">0</div><div class="stat-lbl">Erros</div></div>
       </div>
       <div class="stat-grid c3">
-        <div class="stat-box" style="--st-c:#a855f7;--st-sh:rgba(168,85,247,.3)"><span class="stat-icon" style="--st-bg:rgba(168,85,247,.16)">📱</span><div class="stat-num c-p" id="ds-accs">0</div><div class="stat-lbl">Contas ativas</div></div>
-        <div class="stat-box" style="--st-c:var(--bl);--st-sh:rgba(91,156,246,.3)"><span class="stat-icon" style="--st-bg:var(--bl2)">🔄</span><div class="stat-num c-b" id="ds-proc">0</div><div class="stat-lbl">Jobs ativos</div></div>
-        <div class="stat-box" style="--st-c:#ec4899;--st-sh:rgba(236,72,153,.3)"><span class="stat-icon" style="--st-bg:rgba(236,72,153,.16)">🎬</span><div class="stat-num c-g" id="ds-today">0</div><div class="stat-lbl">Postados hoje</div></div>
+        <div class="stat-box" style="--st-c:#78716c;--st-sh:rgba(120,113,108,.3)"><span class="stat-icon" style="--st-bg:rgba(120,113,108,.16)">📱</span><div class="stat-num c-p" id="ds-accs">0</div><div class="stat-lbl">Contas ativas</div></div>
+        <div class="stat-box" style="--st-c:var(--bl);--st-sh:rgba(91,156,246,.3)"><span class="stat-icon" style="--st-bg:var(--bl2)">🌐</span><div class="stat-num c-b" id="ds-proc">0</div><div class="stat-lbl">Postados no site (todos)</div></div>
+        <div class="stat-box" style="--st-c:#fb923c;--st-sh:rgba(251,146,60,.3)"><span class="stat-icon" style="--st-bg:rgba(251,146,60,.16)">🎬</span><div class="stat-num c-g" id="ds-today">0</div><div class="stat-lbl">Postados hoje</div></div>
       </div>
       <div class="card" style="margin-bottom:14px">
         <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
@@ -763,7 +793,7 @@ function renderQueue(){
     if(isDone||isErr||isCancelled){pct=100;}
     else if(q.totalBytes>0){pct=Math.min(99,Math.round(q.bytesLoaded/q.totalBytes*100));}
     else if(q.total>0){pct=Math.round(q.done/q.total*100);}
-    const fill=isErr?'linear-gradient(90deg,#c22,var(--rd))':isCancelled?'var(--tx3)':isDone?(hasErrs?'linear-gradient(90deg,#d6820f,var(--ye))':'linear-gradient(90deg,#0ea86f,var(--ac))'):'linear-gradient(90deg,#6366f1,#a855f7,#ec4899)';
+    const fill=isErr?'linear-gradient(90deg,#c22,var(--rd))':isCancelled?'var(--tx3)':isDone?(hasErrs?'linear-gradient(90deg,#d6820f,var(--ye))':'linear-gradient(90deg,#0ea86f,var(--ac))'):'linear-gradient(90deg,#f97316,#78716c,#fb923c)';
     const pctLabel=isDone?(hasErrs?'⚠ '+q.errs+' erro(s)':'✓'):isErr?'✗':isCancelled?'—':(pct+'%');
     // Linha de detalhe: arquivo atual + velocidade + arquivos concluídos
     let detailLine='';
@@ -1028,7 +1058,7 @@ async function loadDash(){
   document.getElementById('ds-pending').textContent=sr.pendente||0;
   document.getElementById('ds-error').textContent=sr.erro||0;
   document.getElementById('ds-accs').textContent=sr.accounts||0;
-  document.getElementById('ds-proc').textContent=sr.activeJobs||0;
+  document.getElementById('ds-proc').textContent=sr.sitePostedTotal||0;
   document.getElementById('ds-today').textContent=d.todayCount||0;
   // Atualizar select de categoria do dashboard
   const dashCatSel=document.getElementById('dashCatFilter');
@@ -1060,7 +1090,7 @@ async function loadDash(){
         <div class="dash-bar-row"><span class="dash-bar-lbl">✅ Postados</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pPost}%;background:linear-gradient(90deg,#0ea86f,var(--ac))"></div></div><span class="dash-bar-val c-g">${post}</span></div>
         <div class="dash-bar-row"><span class="dash-bar-lbl">⏰ Pendentes</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pPend}%;background:linear-gradient(90deg,#d6820f,var(--ye))"></div></div><span class="dash-bar-val c-y">${pend}</span></div>
         <div class="dash-bar-row"><span class="dash-bar-lbl">❌ Erros</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pErr}%;background:linear-gradient(90deg,#c22,var(--rd))"></div></div><span class="dash-bar-val c-r">${err}</span></div>
-        <div class="dash-bar-row"><span class="dash-bar-lbl">📦 Total</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${tot>0?100:0}%;background:linear-gradient(90deg,#6366f1,#ec4899)"></div></div><span class="dash-bar-val c-p">${tot}</span></div>
+        <div class="dash-bar-row"><span class="dash-bar-lbl">📦 Total</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${tot>0?100:0}%;background:linear-gradient(90deg,#f97316,#fb923c)"></div></div><span class="dash-bar-val c-p">${tot}</span></div>
       </div>
       <div class="dash-acc-times">
         <div class="dash-acc-time-row"><span class="dash-time-lbl">⏰ Próximo</span><span class="dash-time-val">${a.nextScheduled?fmtDT(a.nextScheduled):'—'}</span></div>
@@ -1210,7 +1240,7 @@ async function loadPlans(){
   document.getElementById('planUsageLine').textContent=`Você está no plano ${planLabel(cur)} · ${r.accountsUsed}/${fmtLimit(r.limits[cur])} contas do Instagram conectadas`+(r.planExpiresAt?` · renova em ${fmtDT(r.planExpiresAt)}`:'');
   const defs=[
     {id:'free',name:'Grátis',color:'#8b8fa3',price:'R$ 0',sub:'/sempre',checkout:null,features:[`${fmtLimit(r.limits.free)} conta(s) do Instagram`,'Agendamento automático','Upload direto pro storage']},
-    {id:'pro',name:'Pro',color:'#a78bfa',price:r.prices.pro||'—',sub:r.prices.pro?'':'',checkout:r.checkout.pro,features:[`${fmtLimit(r.limits.pro)} contas do Instagram`,'Tudo do plano Grátis','Suporte prioritário']},
+    {id:'pro',name:'Pro',color:'#fb923c',price:r.prices.pro||'—',sub:r.prices.pro?'':'',checkout:r.checkout.pro,features:[`${fmtLimit(r.limits.pro)} contas do Instagram`,'Tudo do plano Grátis','Suporte prioritário']},
     {id:'premium',name:'Premium',color:'#ecb43c',price:r.prices.premium||'—',sub:r.prices.premium?'':'',checkout:r.checkout.premium,features:[`${fmtLimit(r.limits.premium)} contas do Instagram`,'Tudo do plano Pro','Prioridade máxima na fila']},
   ];
   document.getElementById('plansGrid').innerHTML=defs.map(p=>{
@@ -1237,7 +1267,7 @@ async function loadAdminUsers(){
   allAdminUsers = overview;
   document.getElementById('adminUserCount').textContent = overview.length + ' usuário' + (overview.length!==1?'s':'');
   document.getElementById('adminStats').innerHTML = `
-    <div class="stat-box" style="--st-c:#6366f1;--st-sh:rgba(99,102,241,.3)"><span class="stat-icon" style="--st-bg:rgba(99,102,241,.16)">👥</span><div class="stat-num c-p">${stats.total||0}</div><div class="stat-lbl">Total usuários</div></div>
+    <div class="stat-box" style="--st-c:#f97316;--st-sh:rgba(249,115,22,.3)"><span class="stat-icon" style="--st-bg:rgba(249,115,22,.16)">👥</span><div class="stat-num c-p">${stats.total||0}</div><div class="stat-lbl">Total usuários</div></div>
     <div class="stat-box" style="--st-c:var(--ac);--st-sh:rgba(62,207,142,.3)"><span class="stat-icon" style="--st-bg:var(--ac2)">✅</span><div class="stat-num c-g">${stats.active||0}</div><div class="stat-lbl">Ativos</div></div>
     <div class="stat-box" style="--st-c:var(--c-au);--st-sh:rgba(251,191,36,.3)"><span class="stat-icon" style="--st-bg:rgba(251,191,36,.16)">🔒</span><div class="stat-num c-y">${stats.admins||0}</div><div class="stat-lbl">Admins</div></div>
     <div class="stat-box" style="--st-c:var(--bl);--st-sh:rgba(91,156,246,.3)"><span class="stat-icon" style="--st-bg:var(--bl2)">🔑</span><div class="stat-num c-b">${stats.todayLogins||0}</div><div class="stat-lbl">Logins hoje</div></div>`;
